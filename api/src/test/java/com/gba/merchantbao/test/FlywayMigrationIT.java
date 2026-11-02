@@ -37,6 +37,7 @@ class FlywayMigrationIT {
                 .cleanDisabled(true)
                 .outOfOrder(false)
                 .baselineOnMigrate(false)
+                .baselineVersion("1")
                 .load();
 
         assertThat(flyway.migrate().migrationsExecuted).isEqualTo(3);
@@ -53,11 +54,11 @@ class FlywayMigrationIT {
 
     @Test
     void testSeedsAreIdempotentAndUseStableTenantCodes() throws Exception {
-        Flyway flyway = migration("classpath:db/migration", "classpath:db/devdata");
+        Flyway flyway = migration("classpath:db/migration", "classpath:db/seed/nonprod");
         assertThat(flyway.migrate().migrationsExecuted).isEqualTo(4);
         try (Connection connection = connection()) {
             ScriptUtils.executeSqlScript(connection,
-                    new ClassPathResource("db/devdata/R__local_test_tenants.sql"));
+                    new ClassPathResource("db/seed/nonprod/R__local_test_tenants.sql"));
             try (ResultSet tenants = connection.createStatement().executeQuery(
                     "SELECT merchant_code FROM merchant ORDER BY merchant_code")) {
                 assertThat(tenants.next()).isTrue();

@@ -7,8 +7,12 @@ import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.context.jdbc.Sql;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.test.context.transaction.AfterTransaction;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.MySQLContainer;
 import org.testcontainers.junit.jupiter.Container;
@@ -20,6 +24,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @ActiveProfiles("test")
 @Testcontainers
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 class FoundationApplicationIT {
     static {
         DockerRequired.check();
@@ -37,6 +42,11 @@ class FoundationApplicationIT {
 
     @DynamicPropertySource
     static void containerConnections(DynamicPropertyRegistry registry) {
+        registry.add("testcontainers.mysql.url", MYSQL::getJdbcUrl);
+        registry.add("testcontainers.mysql.username", MYSQL::getUsername);
+        registry.add("testcontainers.mysql.password", MYSQL::getPassword);
+        registry.add("testcontainers.redis.host", REDIS::getHost);
+        registry.add("testcontainers.redis.port", () -> REDIS.getMappedPort(6379));
         registry.add("spring.datasource.url", MYSQL::getJdbcUrl);
         registry.add("spring.datasource.username", MYSQL::getUsername);
         registry.add("spring.datasource.password", MYSQL::getPassword);
@@ -53,13 +63,34 @@ class FoundationApplicationIT {
 
     @Test
     void applicationStartsWithFlywayFixturesAndContainerRedis() {
-        assertThat(jdbc.queryForList("SELECT merchant_code FROM merchant ORDER BY merchant_code", String.class))
+        assertThat(MYSQL.getMappedPort(3306)).isNotIn(3306, 3307);
+        assertThat(REDIS.getMappedPort(6379)).isNotIn(6379, 6380);
+        for (var container : java.util.List.of(MYSQL, REDIS)) {
+            assertThat(container.getContainerInfo().getMounts()).noneSatisfy(mount ->
+                    assertThat(mount.getName()).isIn("gba-dev_mysql_data", "gba-dev_redis_data"));
+        }
+        assertThat(jdbc.queryForList("SELECT merchant_code FROM merchant WHERE merchant_code IN "
+                + "('M_3C_DEMO', 'M_ISOLATION_TEST') ORDER BY merchant_code", String.class))
                 .containsExactly("M_3C_DEMO", "M_ISOLATION_TEST");
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM flyway_schema_history WHERE success = 1", Integer.class))
                 .isEqualTo(4);
         try (var connection = redis.getConnection()) {
             assertThat(connection.ping()).isEqualTo("PONG");
         }
+    }
+
+    @Test
+    @Transactional
+    @Sql("/db/fixture/merchant_probe.sql")
+    void fixtureIsLocatedByStableTenantCodeAndRolledBack() {
+        assertThat(jdbc.queryForObject("SELECT merchant_name FROM merchant WHERE merchant_code = ?",
+                String.class, "M_FIXTURE_RUNTIME" )).isEqualTo("Runtime fixture");
+    }
+
+    @AfterTransaction
+    void fixtureDidNotLeakOutsideTheTestTransaction() {
+        assertThat(jdbc.queryForList("SELECT id FROM merchant WHERE merchant_code = ?",
+                Long.class, "M_FIXTURE_RUNTIME")).isEmpty();
     }
 
     @Test

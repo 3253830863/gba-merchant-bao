@@ -138,7 +138,7 @@ Redis、RabbitMQ、对象存储、向量数据库和关系数据库必须（MUST
 
 #### Scenario: Production preparation is planned
 - **WHEN** 准备生产 Compose、环境文件、账号脚本和 Dockerfile
-- **THEN** 实际文件分别位于 `api/docs/prod-profile/opt/gba/docker-compose.yml`、该目录的 `.env`、`docker/mysql/init/01-create-users.sh` 和 `app/Dockerfile`；该目录保持忽略，安全示例位于可提交的文档目录，操作手册不包含 chmod 600 步骤
+- **THEN** 实际文件分别位于 `api/docs/prod-profile/opt/gba/docker-compose.yml`、该目录的 `.env`、`docker/mysql/init/01-create-users.sh` 和 `app/Dockerfile`；该目录是生产配置唯一来源，Compose、`.env.example`、Dockerfile、`.dockerignore` 和初始化脚本按文件放行提交；实际 `.env`、JAR、发布 SQL 和备份仍忽略，删除重复 examples/prod，测试直接读取该目录；操作手稿可提交，不包含 chmod 600 步骤
 
 #### Scenario: Production artifacts are not released yet
 - **WHEN** 本 change 只准备生产配置而尚未上线
@@ -185,6 +185,10 @@ Redis、RabbitMQ、对象存储、向量数据库和关系数据库必须（MUST
 #### Scenario: Future automation remains deferred
 - **WHEN** 本 change 完成生产配置准备
 - **THEN** 不包含 RDS、真实 ECS 发布、镜像仓库推拉或 tag 发布流水线；GitHub PR CI 留待 Redis 登录会话模块完成后另行规划，RabbitMQ 等仍随首次使用模块引入
+
+#### Scenario: An existing release is operated without a new deployment
+- **WHEN** 已上线同版本服务仅需查看状态、重启、恢复容器或使 app 环境配置生效
+- **THEN** 手册分别给出 ps、restart、使用已有镜像 up --no-build、仅重建 app 配置的命令；不要求每次登录 ECS 都构建镜像或执行迁移，restart 不被描述为重新加载环境变量
 
 ### Requirement: Database recovery shall use verifiable backups of structure and data
 

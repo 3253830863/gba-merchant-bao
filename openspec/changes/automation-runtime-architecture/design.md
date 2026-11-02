@@ -12,7 +12,7 @@
 
 项目目前有 `dev`、`local`、`test`、`prod` 配置。`dev`、`local` 和 `test` 都加载 `db/devdata`；集成测试显式选择 `test`，并通过 Testcontainers 的动态地址覆盖连接配置。当前 `db/devdata` 只有两个租户根记录，尚无 `db/seed` 分层或 test fixture 目录。设计手稿还定义了 3C 商品、SKU、订单、物流、知识和会话演示数据，需随对应模块逐步补充。
 
-本次 Docker 细化以 `api/docs/prod-profile/Docker开发和生产环境.txt` 为输入，并采用本轮已确认的差异：dev Redis 无密码、实际初始密码统一为 `123456`、生产应用使用 Dockerfile 构建镜像、中间件数据命名卷、应用日志 bind mount、本机导出加笔记本异机保存。当前日志实现还是文本 `.log` 和按天轮转；JSON、按大小轮转及归档总量限制是本 change 的实现目标，不能视为已完成。`api/docs/prod-profile/` 当前整体被 Git 忽略。
+本次 Docker 细化以 `api/docs/prod-profile/Docker开发和生产环境.txt` 为输入，并采用本轮已确认的差异：dev Redis 无密码、实际初始密码统一为 `123456`、生产应用使用 Dockerfile 构建镜像、中间件数据命名卷、应用日志 bind mount、本机导出加笔记本异机保存。当前日志实现还是文本 `.log` 和按天轮转；JSON、按大小轮转及归档总量限制是本 change 的实现目标，不能视为已完成。本次细化后 `api/docs/prod-profile/` 采用默认忽略、按文件放行，只有操作手稿及 opt/gba 下无凭据定义可提交。
 
 ## Goals / Non-Goals
 
@@ -84,7 +84,7 @@ dev 默认将 MySQL 映射到 `127.0.0.1:3307`、Redis 映射到 `127.0.0.1:6380
 
 本 change 包含生产准备模板和手动发布手册；RDS、实际云操作和 CI 发布仍延后。dev 的 `.env` 只给 Compose 使用，IDEA 读取本地 YAML；prod 则由 Compose 将 `.env` 的值显式注入 app/migrate，各 YAML 使用环境变量占位符。Spring Boot 不会自动读取 `.env`，两种流程不能混写。
 
-本地生产准备文件布局固定如下，后续 apply 时生成，不在本轮工件编辑中直接创建：
+本地生产配置维护位置固定如下，实际发布产物仍在未来上线时准备：
 
 | 文件 | 本地位置 | 未来 ECS 位置 |
 | --- | --- | --- |
@@ -93,17 +93,19 @@ dev 默认将 MySQL 映射到 `127.0.0.1:3307`、Redis 映射到 `127.0.0.1:6380
 | 账号初始化脚本 | `api/docs/prod-profile/opt/gba/docker/mysql/init/01-create-users.sh` | `/opt/gba/docker/mysql/init/01-create-users.sh` |
 | 应用 Dockerfile | `api/docs/prod-profile/opt/gba/app/Dockerfile` | `/opt/gba/app/Dockerfile` |
 
-`api/docs/prod-profile/` 继续忽略。可提交的无凭据 Compose/Dockerfile/初始化脚本及 prod `.env.example` 集中放在 `api/docs/deployment/examples/`；dev `.env.example` 放仓库根，dev/prod 的 YAML 占位示例放文档示例目录。手册说明复制到上表目标位置及填写实际值，使用 `git check-ignore` 验证实际文件被忽略、示例可提交，避免只把示例放到整个被忽略的目录中。实际 prod `.env` 中 MySQL root、迁移账号、应用账号和 Redis 初始密码按当前选择都先用 `123456`；脚本、Dockerfile、已提交示例不硬编码运行凭据，不把 `.env` 复制进镜像。不加入 `chmod 600 /opt/gba/.env` 步骤。
+生产配置以 `api/docs/prod-profile/opt/gba/` 为唯一维护位置，删除重复的 `api/docs/deployment/examples/prod/`。`api/.gitignore` 默认忽略生产目录，只放行 Docker 操作手稿、Compose、`.env.example`、Dockerfile、`.dockerignore` 和账号初始化脚本；实际 `.env`、app.jar、db/ 下的发布 SQL 及备份继续忽略。dev `.env.example` 放仓库根，dev/prod YAML 占位示例放 `api/src/main/resources/`。新开发者只复制占位环境文件并填写实际值，用 `git check-ignore` 验证真实配置和产物被忽略、无凭据定义可提交；测试直接读取唯一生产目录。实际 prod `.env` 中 MySQL root、迁移账号、应用账号和 Redis 初始密码按当前选择都先用 `123456`；脚本、Dockerfile、已提交示例不硬编码运行凭据，不把 `.env` 复制进镜像。不加入 `chmod 600 /opt/gba/.env` 步骤。
 
 目前不创建发布用 `app.jar`，也不把源码 SQL 复制到上述准备目录。结构脚本继续在 `api/src/main/resources/db/migration/`，common seed 继续在 `api/src/main/resources/db/seed/common/`。未来真实上线时才将同一发布版本的 JAR、DDL、common seed 复制到 ECS `/opt/gba/app/app.jar`、`/opt/gba/db/migration/`、`/opt/gba/db/seed/common/`。当前只有模板时，可检查 Compose 静态配置，但不能声称镜像已构建或生产迁移已运行。
 
 ### Build production application images and migrate before startup
 
+手动运行按场景区分：仅登录 ECS 查看状态不需要启动；原版本恢复使用已有镜像和健康中间件，不 build/migrate；只重启 app 用 restart；只改环境配置需 up --no-build --no-deps --force-recreate app，restart 不加载新环境变量。更新 JAR/迁移时先构建镜像，再停写、备份结构和数据、执行 migrate，成功后启动新版并检查健康。上传命令在开发电脑仓库根执行，生产配置取 opt/gba，JAR 和 SQL 直接取 target 与源码目录；不要求当前预放发布产物。
+
 prod Compose 有 MySQL、Redis、一次性 `migrate` 和 `app`，与根 dev Compose 分开。中间件默认启动，app/migrate 使用 Compose 的 `deploy` profile（这不是新的 Spring profile）。数据库和 Redis 不开放公网端口；确需本机工具时只映射 loopback，通过 SSH 隧道访问。应用在容器内连接 `mysql:3306`、`redis:6379`，激活 Spring `prod`，不回退到 dev。
 
 prod Redis 从实际 `.env` 的 `REDIS_PASSWORD` 接收密码，初始值按当前选择设为 `123456`，并配置 requirepass；健康检查通过 `REDISCLI_AUTH` 认证，应用通过环境变量占位符读取同一个 `REDIS_PASSWORD`。dev 的无密码约定仅作用于 dev，不能复制到生产配置；“移除 requirepass”仅指 dev Compose。MySQL/Redis 数据仍使用命名卷，应用日志使用 bind mount，两类存储分别管理。
 
-`01-create-users.sh` 使用 LF 换行，从环境读取密码，仅在 MySQL 空数据卷初始化时创建 `flyway_deploy` 与 `app`。前者获得 `gba.*` 的迁移权限，不使用全局 root 或 GRANT OPTION；后者仅有该业务库 SELECT/INSERT/UPDATE/DELETE 权限。root 用于初始化和管理，不交给应用。已有卷需管理员另行创建或授权，不能靠重启补建。
+`01-create-users.sh` 使用 LF 换行和可读的 0644 权限，从环境读取密码，由官方 entrypoint source；不得 chmod +x 改成独立执行，否则无法调用 docker_process_sql。仅在 MySQL 空数据卷初始化时创建 `flyway_deploy` 与 `app`。前者获得 `gba.*` 的迁移权限，不使用全局 root 或 GRANT OPTION；后者仅有该业务库 SELECT/INSERT/UPDATE/DELETE 权限。root 用于初始化和管理，不交给应用。已有卷需管理员另行创建或授权，不能靠重启补建。
 
 dev 使用同一开发账号，由 Spring Flyway 启动迁移；prod 应用设置 `spring.flyway.enabled=false`，由版本与项目 Flyway 依赖一致的独立 CLI 容器运行。CLI 只接收迁移账号，app 只接收 DML 账号；CLI 挂载同版本 migration 与 common seed，只读加载，不加载 nonprod、devdata 或测试 fixture。保持 validate-on-migrate、clean-disabled 为 true，baseline-on-migrate、out-of-order 为 false，baseline-version 为 1。显式 baseline 是已核验旧库的一次性管理操作，不写进日常发布命令。
 

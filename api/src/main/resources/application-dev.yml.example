@@ -1,0 +1,32 @@
+spring:
+  flyway:
+    locations: classpath:db/migration,classpath:db/seed/common,classpath:db/seed/nonprod,classpath:db/devdata
+
+merchant:
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    host: 127.0.0.1
+    port: 3307
+    database: gba_dev
+    username: dev_admin
+    password: REPLACE_WITH_LOCAL_DATABASE_PASSWORD
+  redis:
+    host: 127.0.0.1
+    port: 6380
+    database: 0
+  websocket:
+    enabled: false
+  alioss:
+    endpoint: https://oss-cn-shenzhen.aliyuncs.com
+    access-key-id: local-unused
+    access-key-secret: local-unused
+    bucket-name: local-unused
+  wechat:
+    appid: local-unused
+    secret: local-unused
+  shop:
+    address: 广州
+  baidu:
+    ak: local-unused
+  openapi:
+    enabled: true

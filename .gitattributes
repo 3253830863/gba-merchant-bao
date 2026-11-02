@@ -1,0 +1,2 @@
+# MySQL entrypoint sources these scripts in Linux containers.
+*.sh text eol=lf

@@ -17,7 +17,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @SpringBootTest(properties = {
         "spring.flyway.enabled=false",
-        "merchant.websocket.enabled=false"
+        "merchant.websocket.enabled=false",
+        // HTTP 契约不访问中间件；不可达地址防止继承开发者连接。
+        "spring.datasource.url=jdbc:mysql://127.0.0.1:1/http_contract_no_database",
+        "spring.datasource.username=unused",
+        "spring.datasource.password=unused",
+        "spring.data.redis.host=127.0.0.1",
+        "spring.data.redis.port=1"
 })
 @AutoConfigureMockMvc
 @ActiveProfiles("test")

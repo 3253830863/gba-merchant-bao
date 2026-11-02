@@ -1,0 +1,44 @@
+spring:
+  flyway:
+    enabled: false
+  data:
+    redis:
+      password: ${REDIS_PASSWORD}
+
+logging:
+  file:
+    path: ${LOG_DIR}
+  level:
+    com.gba.merchantbao.legacy.mapper: info
+
+merchant:
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    host: ${DB_HOST}
+    port: ${DB_PORT}
+    database: ${DB_NAME}
+    username: ${DB_USER}
+    password: ${DB_PASSWORD}
+  redis:
+    host: ${REDIS_HOST}
+    port: ${REDIS_PORT}
+    database: 0
+  jwt:
+    admin-secret-key: ${ADMIN_JWT_SECRET}
+    user-secret-key: ${USER_JWT_SECRET}
+  websocket:
+    enabled: false
+  alioss:
+    endpoint: ${OSS_ENDPOINT:https://oss-cn-shenzhen.aliyuncs.com}
+    access-key-id: ${OSS_ACCESS_KEY_ID:prod-unused}
+    access-key-secret: ${OSS_ACCESS_KEY_SECRET:prod-unused}
+    bucket-name: ${OSS_BUCKET:prod-unused}
+  wechat:
+    appid: ${WECHAT_APPID:prod-unused}
+    secret: ${WECHAT_SECRET:prod-unused}
+  shop:
+    address: ${SHOP_ADDRESS:广州}
+  baidu:
+    ak: ${BAIDU_AK:prod-unused}
+  openapi:
+    enabled: false

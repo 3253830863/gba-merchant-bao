@@ -11,7 +11,7 @@
 - 使用 `dev` profile 连接本地 Docker Compose MySQL/Redis 持久服务；使用 `test` profile 和独立 Testcontainers 运行自动化测试；移除重复的 `local` profile。
 - dev 与 prod 使用两份独立的 `docker-compose.yml`，MySQL/Redis 使用命名持久卷和健康检查；dev 固定端口可覆盖，prod 服务通过容器网络连接。RabbitMQ、Milvus 等仍在首次使用的技术模块中加入。
 - 根目录 `.env` 给 dev Compose 使用，被忽略的 `api/src/main/resources/application-dev.yml` 给 IDEA 使用；IDEA 只激活 dev，不加载 `.env`。dev MySQL 默认密码为 `123456`；dev Redis 不配置密码，Compose 不设置 requirepass。prod 实际 `.env` 中 MySQL 和 Redis 初始密码均为 `123456`；Redis 通过 requirepass 启用认证，应用与健康检查读取相同密码。生产连接值通过环境变量注入应用；实际凭据不提交 Git，示例只保留占位值。
-- 生产准备文件放在 `api/docs/prod-profile/opt/gba/`：Compose、`.env`、`docker/mysql/init/01-create-users.sh`、`app/Dockerfile`。采用上传 Dockerfile＋JAR 后在 ECS 构建应用镜像的手动流程，不挂载 JAR 启动；本次不复制 JAR 或迁移 SQL 到该目录，也不执行生产发布。
+- 生产准备文件统一放在 `api/docs/prod-profile/opt/gba/`：可提交 Compose、`.env.example`、`docker/mysql/init/01-create-users.sh`、`app/Dockerfile` 和 `.dockerignore`；实际 `.env` 仍忽略，不保留重复的 examples/prod。采用上传 Dockerfile＋JAR 后在 ECS 构建应用镜像的手动流程，不挂载 JAR 启动；本次不复制 JAR 或迁移 SQL 到该目录，也不执行生产发布。
 - dev 由应用启动时执行 Flyway；prod 由独立 Flyway CLI 使用迁移账号执行，成功后应用才以 DML 账号启动，prod 应用禁用启动迁移。未来上线时才复制同版本 JAR、结构 SQL 和 common seed。
 - MySQL 备份同时包含结构和数据，不另做纯数据备份。dev 导出到仓库根 `backups/`，生产导出到 `/opt/gba/backups/mysql/` 并下载至笔记本；命名带日期，`backups/` 忽略 Git。明确恢复演练、失败后恢复或向前修复的边界，不依靠删除数据卷回滚。
 - dev/prod 使用 `application.json` 与 `audit.json`，按天和大小轮转，分别设置 100MB/7天/2GB 与 100MB/30天/1GB 的归档预算；各 Docker 服务日志为 20MB×5。prod 应用日志映射到 `/opt/gba/logs/app/`，dev 写入 `api/.runtime/logs`，测试只写入 `api/target/test-logs`，不新增 `error.json`。
@@ -22,7 +22,7 @@
 - 将 `M_3C_DEMO` 和 `M_ISOLATION_TEST` 作为非生产租户根种子；商品、订单等演示业务样板数据随各自技术模块加入 `db/devdata`，生产不加载这些记录。
 - 废弃业务测试对整张表总数或“从 0 增长到 N”的断言，改用租户范围和稳定业务标识验证用例数据；fixture 默认随测试事务回滚，不能事务回滚的场景按稳定标识清理。
 - 阿里云 RDS、镜像仓库、GitHub PR CI、tag 发布流水线及真实上线操作不在本次范围内；不为尚未实现的技术模块预建表或加入依赖。PR CI 待 Redis 登录会话完成后另行规划。
-- 将实际连接设置和凭证保留在被忽略的本地文件中，提供可提交的占位示例和复制步骤；不加入 `chmod 600` 步骤。
+- 将实际连接设置和凭证保留在被忽略的本地文件中，提供可提交的占位示例和复制步骤；分别说明首次发布、恢复原版本、重启、配置生效和更新发布，不加入 `chmod 600` 步骤。
 
 ## Capabilities
 
@@ -37,7 +37,7 @@
 ## Impact
 
 - 后端配置：`api/src/main/resources/application*.yml`、Flyway 迁移和集成测试配置。
-- 开发及生产准备：两套 Compose、命名数据卷、Dockerfile、数据库账号初始化脚本、本地配置与占位示例；生产文件实际放在被忽略的 `api/docs/prod-profile/opt/gba/`。
+- 开发及生产准备：两套 Compose、命名数据卷、Dockerfile、数据库账号初始化脚本、本地配置与占位示例；生产文件统一放在 `api/docs/prod-profile/opt/gba/`，只放行无凭据配置、构建文件和 `.env.example`，实际 `.env`、JAR、SQL 和备份保持忽略。
 - 日志与备份：Logback 配置、Docker 日志轮转、`backups/` 忽略规则及备份恢复手册。
 - 测试与文档：Flyway/Testcontainers 测试、profile 与 QA 路径、手动发布步骤、种子/fixture 归属及断言规则；后续实现时同步 Docker 手稿和相关运行/日志文档。
 - 不包含实际 ECS/RDS 部署、CI 发布流水线、认证表或未来 Agent 技术模块的数据表；已归档 spec 保持历史记录，由本 change 明确新的约定。

@@ -1,0 +1,101 @@
+name: gba
+
+x-logging: &service-logging
+  driver: json-file
+  options:
+    max-size: "20m"
+    max-file: "5"
+
+services:
+  mysql:
+    image: mysql:8.0.34
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Required}
+      MYSQL_DATABASE: gba
+      FLYWAY_PASSWORD: ${FLYWAY_PASSWORD:?Required}
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD:?Required}
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./docker/mysql/init/01-create-users.sh:/docker-entrypoint-initdb.d/01-create-users.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "MYSQL_PWD=\"$$MYSQL_ROOT_PASSWORD\" mysql -h 127.0.0.1 -uroot -e 'SELECT 1' >/dev/null 2>&1"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+    logging: *service-logging
+
+  redis:
+    image: redis:7.4-alpine
+    restart: unless-stopped
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?Required}
+      REDISCLI_AUTH: ${REDIS_PASSWORD:?Required}
+    command: ["sh", "-c", "exec redis-server --appendonly yes --requirepass \"$$REDIS_PASSWORD\""]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli ping | grep -qx PONG"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    logging: *service-logging
+
+  migrate:
+    image: flyway/flyway:11.7.2
+    profiles: [deploy]
+    environment:
+      FLYWAY_URL: jdbc:mysql://mysql:3306/gba?allowPublicKeyRetrieval=true&useSSL=false
+      FLYWAY_USER: flyway_deploy
+      FLYWAY_PASSWORD: ${FLYWAY_PASSWORD:?Required}
+      FLYWAY_LOCATIONS: filesystem:/flyway/sql/migration,filesystem:/flyway/sql/seed/common
+      FLYWAY_BASELINE_VERSION: "1"
+      FLYWAY_BASELINE_ON_MIGRATE: "false"
+      FLYWAY_VALIDATE_ON_MIGRATE: "true"
+      FLYWAY_CLEAN_DISABLED: "true"
+      FLYWAY_OUT_OF_ORDER: "false"
+    volumes:
+      - ./db/migration:/flyway/sql/migration:ro
+      - ./db/seed/common:/flyway/sql/seed/common:ro
+    command: [migrate]
+    depends_on:
+      mysql:
+        condition: service_healthy
+    logging: *service-logging
+
+  app:
+    profiles: [deploy]
+    image: gba-app:${APP_VERSION:?Required}
+    build:
+      context: ./app
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "${APP_PORT:-8080}:8080"
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      SPRING_FLYWAY_ENABLED: "false"
+      DB_HOST: mysql
+      DB_PORT: "3306"
+      DB_NAME: gba
+      DB_USER: app
+      DB_PASSWORD: ${APP_DB_PASSWORD:?Required}
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?Required}
+      LOG_DIR: /app/logs
+      ADMIN_JWT_SECRET: ${ADMIN_JWT_SECRET:?Required}
+      USER_JWT_SECRET: ${USER_JWT_SECRET:?Required}
+    volumes:
+      - /opt/gba/logs/app:/app/logs
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    logging: *service-logging
+
+volumes:
+  mysql_data:
+  redis_data:
