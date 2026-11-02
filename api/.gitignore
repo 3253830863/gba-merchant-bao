@@ -8,3 +8,23 @@
 **/application-dev.yml
 **/application-dev.yaml
 
+# 生产目录默认忽略；只提交运维手稿和不含实际凭据的构建/配置文件。
+docs/prod-profile/*
+!docs/prod-profile/Docker开发和生产环境.txt
+!docs/prod-profile/opt/
+docs/prod-profile/opt/*
+!docs/prod-profile/opt/gba/
+docs/prod-profile/opt/gba/*
+!docs/prod-profile/opt/gba/docker-compose.yml
+!docs/prod-profile/opt/gba/.env.example
+!docs/prod-profile/opt/gba/app/
+!docs/prod-profile/opt/gba/docker/
+docs/prod-profile/opt/gba/app/*
+!docs/prod-profile/opt/gba/app/Dockerfile
+!docs/prod-profile/opt/gba/app/.dockerignore
+docs/prod-profile/opt/gba/docker/*
+!docs/prod-profile/opt/gba/docker/mysql/
+docs/prod-profile/opt/gba/docker/mysql/*
+!docs/prod-profile/opt/gba/docker/mysql/init/
+docs/prod-profile/opt/gba/docker/mysql/init/*
+!docs/prod-profile/opt/gba/docker/mysql/init/01-create-users.sh

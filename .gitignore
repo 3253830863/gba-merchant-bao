@@ -3,5 +3,9 @@
 .agents/
 skills-lock.json
 
+# 本地 Compose 凭据和数据库备份
+/.env
+/backups/
+
 # OpenSpec 的临时工作产物和本地运行文件；正式 change/spec/config 仍可提交。
 openspec/changes/*/artifacts/

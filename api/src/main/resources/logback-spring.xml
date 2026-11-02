@@ -4,8 +4,6 @@
     <springProperty name="LOG_DIR" source="logging.file.path" defaultValue=".runtime/logs"/>
     <property name="CONSOLE_PATTERN"
               value="%clr(%d{yyyy-MM-dd'T'HH:mm:ss.SSSXXX}){faint} %clr(%5p) %clr([%X{module:-unknown}]){yellow} %clr([requestId=%X{requestId:-none}]){magenta} %clr(%logger{36}){cyan} - %m%n%wEx"/>
-    <property name="FILE_PATTERN"
-              value="%d{yyyy-MM-dd'T'HH:mm:ss.SSSXXX} %-5level module=%X{module:-unknown} requestId=%X{requestId:-none} logger=%logger{36} message=%msg%n"/>
 
     <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
         <encoder>
@@ -15,26 +13,28 @@
     </appender>
 
     <appender name="APPLICATION_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
-        <file>${LOG_DIR}/application.log</file>
-        <encoder>
-            <pattern>${FILE_PATTERN}</pattern>
-            <charset>UTF-8</charset>
+        <file>${LOG_DIR}/application.json</file>
+        <encoder class="org.springframework.boot.logging.logback.StructuredLogEncoder">
+            <format>logstash</format>
         </encoder>
-        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
-            <fileNamePattern>${LOG_DIR}/application.%d{yyyy-MM-dd}.log.gz</fileNamePattern>
-            <maxHistory>14</maxHistory>
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <fileNamePattern>${LOG_DIR}/application.%d{yyyy-MM-dd}.%i.json.gz</fileNamePattern>
+            <maxFileSize>100MB</maxFileSize>
+            <maxHistory>7</maxHistory>
+            <totalSizeCap>2GB</totalSizeCap>
         </rollingPolicy>
     </appender>
 
     <appender name="AUDIT_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
-        <file>${LOG_DIR}/audit.log</file>
-        <encoder>
-            <pattern>${FILE_PATTERN}</pattern>
-            <charset>UTF-8</charset>
+        <file>${LOG_DIR}/audit.json</file>
+        <encoder class="org.springframework.boot.logging.logback.StructuredLogEncoder">
+            <format>logstash</format>
         </encoder>
-        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
-            <fileNamePattern>${LOG_DIR}/audit.%d{yyyy-MM-dd}.log.gz</fileNamePattern>
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <fileNamePattern>${LOG_DIR}/audit.%d{yyyy-MM-dd}.%i.json.gz</fileNamePattern>
+            <maxFileSize>100MB</maxFileSize>
             <maxHistory>30</maxHistory>
+            <totalSizeCap>1GB</totalSizeCap>
         </rollingPolicy>
     </appender>
 
@@ -44,6 +44,7 @@
     </logger>
     <logger name="com.gba.merchantbao.llm" level="INFO" additivity="false">
         <appender-ref ref="APPLICATION_FILE"/>
+        <appender-ref ref="CONSOLE"/>
     </logger>
     <root level="INFO">
         <appender-ref ref="CONSOLE"/>

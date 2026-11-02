@@ -19,14 +19,20 @@ class FoundationSchemaContractTest {
         String merchant = resource("db/migration/V2__merchant_tenant_root.sql");
         assertThat(merchant).contains("merchant_code", "NOT NULL", "uk_merchant_code");
         assertThat(merchant).contains("idx_merchant_status");
-        assertThat(resource("db/devdata/R__local_test_tenants.sql"))
+        assertThat(resource("db/seed/nonprod/R__local_test_tenants.sql"))
                 .contains("M_3C_DEMO", "M_ISOLATION_TEST", "ON DUPLICATE KEY UPDATE");
     }
 
+    /*
+    * Windows上编辑器默认保存CRLF
+    * Linux上是LF
+    * 归一化 CRLF ----> LF
+    * 结果 : 用LF算出来的哈希
+    * */
     @Test
     void publishedMigrationChecksumsRemainImmutable() throws Exception {
         Map<String, String> expected = Map.of(
-                "db/migration/V1__legacy_schema_baseline.sql", "694ee44ecc087fa5246ab4a11bd7a9a9469675c5a3f7a10d7c23866ace573107",
+                "db/migration/V1__legacy_schema_baseline.sql", "efb5f82109302e0b4f794d8fd25242fdaba5244ebdc70aa93ee842b48d732da6",
                 "db/migration/V2__merchant_tenant_root.sql", "4a935fe633de73bd9f9e7dfd41015a13ecdbf146b0c5da6f228c1ab3428e7b49",
                 "db/migration/V3__merchant_currency_compatibility.sql", "bf1aa83d261bdc70b3bd16f4b032b07a03ba1f3eaf6ecabefeed77e76ab54567"
         );
@@ -68,6 +74,6 @@ class FoundationSchemaContractTest {
 
     private String sha256(String content) throws Exception {
         return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
-                .digest(content.getBytes(StandardCharsets.UTF_8)));
+                .digest(content.replace("\r\n", "\n").getBytes(StandardCharsets.UTF_8)));
     }
 }

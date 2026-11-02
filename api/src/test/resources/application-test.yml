@@ -1,8 +1,18 @@
 spring:
+  datasource:
+    url: ${testcontainers.mysql.url}
+    username: ${testcontainers.mysql.username}
+    password: ${testcontainers.mysql.password}
+  data:
+    redis:
+      host: ${testcontainers.redis.host}
+      port: ${testcontainers.redis.port}
   flyway:
-    locations: classpath:db/migration,classpath:db/devdata
+    locations: classpath:db/migration,classpath:db/seed/common,classpath:db/seed/nonprod
 
 merchant:
+  scheduling:
+    enabled: false
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
     host: 127.0.0.1

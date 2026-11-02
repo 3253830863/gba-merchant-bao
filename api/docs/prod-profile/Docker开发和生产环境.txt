@@ -1,0 +1,404 @@
+Docker 开发和生产环境（automation-runtime-architecture）
+
+生产配置唯一目录：api/docs/prod-profile/opt/gba。无凭据定义和本手稿提交，实际 .env、JAR、发布 SQL 和备份忽略。
+
+以下内容与 api/docs/deployment 的运行手册同步；命令注明的工作目录必须保持一致。当前没有执行 ECS 上线。
+
+# 本地持久联调
+
+开发环境统一叫 dev；test 专用于自动化测试，prod 用于未来生产。Spring profile 与 Compose 的 deploy profile 是两种概念。
+
+## 首次配置（仓库根 PowerShell）
+
+```powershell
+Copy-Item .env.example .env
+Copy-Item api/src/main/resources/application-dev.yml.example api/src/main/resources/application-dev.yml
+```
+
+编辑被忽略的实际文件：根 `.env` 中 MYSQL_ROOT_PASSWORD、MYSQL_PASSWORD 初始均填 `123456`；dev YAML 的 merchant.datasource.password 同样填此值。
+两处保持数据库 gba_dev、用户 dev_admin、MySQL 端口 3307、Redis 端口 6380 一致。端口被占用时，修改 .env 的 MYSQL_PORT/REDIS_PORT 并同步 YAML。
+dev Redis 无密码；.env 不添加 REDIS_PASSWORD，YAML 不添加 Redis password。AOF 与命名卷负责持久化。
+`.env` 只给 Compose 插值，Spring Boot 不会读取它；IDEA 不需要加载 .env 或注入额外环境变量。
+
+日常启动只需要在仓库根执行下面的命令；`docker compose up` 会读取并解析 Compose 配置。
+
+```powershell
+docker compose up -d
+docker compose ps
+```
+
+首次创建 Compose 文件、修改 Compose 配置或排查配置问题时，可以单独执行
+`docker compose config --quiet`。它是配置检查命令，不是每天启动 dev 的前置步骤。
+
+当前 dev Compose 只包含 MySQL 和 Redis，没有需要显式激活的 Compose profile。
+后续某个技术模块首次引入 RabbitMQ、登录会话 Redis 等中间件时，才为该模块声明独立
+profile，并使用明确的名称启动，例如 `docker compose --profile login up -d`。
+不要使用 `docker compose --profile "*" up -d`，以免把所有尚未验收的模块依赖一起启动。
+
+IDEA 运行 MerchantApplication，JDK 21，工作目录设为仓库的 api，Active profiles 只填 dev。
+也可从 api 目录运行：
+
+```powershell
+mvn spring-boot:run '-Dspring-boot.run.arguments=--spring.profiles.active=dev'
+```
+
+首次启动空库自动执行 V1→V2→V3 和适用种子，无需 baseline。仅激活 dev 就能运行，无需个人旧库或云端 OSS/微信凭据；占位外部配置不表示相应业务可用。
+前端及 Apifox 的 API base URL 为 http://localhost:8080，健康检查 GET /api/v1/health；文档 /swagger-ui.html、/v3/api-docs.yaml。
+数据库工具连接 127.0.0.1:3307/gba_dev，dev_admin；Redis 工具连接 127.0.0.1:6380，无认证。前端调用 API，不直接连接数据库。
+多个前端/后端开发者各自建立空库；共享联调如需 API 远程可达，单独约定主机地址。中间件保持 loopback。
+
+## 日常启动和已有卷
+
+```powershell
+docker compose up -d --wait
+docker compose restart mysql redis
+# 可重建容器，保留命名卷
+docker compose up -d --force-recreate --wait
+# 停止时保留数据
+docker compose down
+```
+
+如果需要等待健康检查完成，可在确认配置后使用 `docker compose up -d --wait`；它是可选的
+等待步骤。Docker Desktop 启动后，推荐顺序是：启动 Compose 中间件、在 IDEA 激活 Spring
+`dev`、再启动后端。后端通过 `dev_admin` 连接数据库，Flyway 会自动执行待执行迁移，随后即可
+进行断点调试。前端和 Apifox 使用同一 dev API，不连接 Testcontainers。
+
+项目名 gba-dev，对应 gba-dev_mysql_data / gba-dev_redis_data，与 prod 的 gba 分离。
+正常流程不使用 down -v。改变 .env 或初始化脚本不会修改已有 MySQL 卷账号；管理员连接正确实例显式 ALTER USER/授权，再同步实际 YAML 和 .env，不能删卷来改密码。
+例：先用管理员会话执行 `ALTER USER 'dev_admin'@'%' IDENTIFIED BY '<新密码>';`，确认新连接可用再更新应用。不要把口令写到命令历史、日志或提交中。
+改数据库名也不会自动为已有卷创建新库，需先规划迁移并由管理员处理。
+
+持久化验收应在明确的 dev 目标内创建独立临时表/键，重启和重建后读取，最后仅定向清理自己的表/键；不要对联调业务表 TRUNCATE。
+自动化集成测试使用动态端口的 Testcontainers，可与 dev 同时运行；它不挂载这些卷。
+
+## 配置与凭据边界
+
+根 .env、实际 dev YAML、backups/、api/.runtime/ 和实际生产 .env 均忽略 Git。
+dev YAML 示例位于 `api/src/main/resources/application-dev.yml.example`，主资源 application-prod.yml 仅保留环境变量占位符，可以提交并进入 JAR。
+生产文件统一维护在 `api/docs/prod-profile/opt/gba/`：Compose、.env.example、Dockerfile、.dockerignore 和账号初始化脚本可提交；实际 .env、app.jar、db/ 下的发布 SQL 和备份仍被忽略。`api/.gitignore` 按文件放行，不再维护 deployment/examples/prod 副本。
+`api/docs/prod-profile/Docker开发和生产环境.txt` 是可提交的操作手稿。任何含实际凭据的额外配置不得放入放行列表。
+
+```powershell
+git check-ignore .env api/src/main/resources/application-dev.yml api/docs/prod-profile/opt/gba/.env backups/check.sql
+git check-ignore api/docs/prod-profile/opt/gba/app/app.jar api/docs/prod-profile/opt/gba/db/migration/V1__legacy_schema_baseline.sql
+# 上述两条命令应输出被忽略路径，发布产物即使存在也不进入 Git。
+git check-ignore api/docs/prod-profile/opt/gba/docker-compose.yml api/docs/prod-profile/opt/gba/.env.example api/docs/prod-profile/opt/gba/app/Dockerfile api/docs/prod-profile/opt/gba/app/.dockerignore api/docs/prod-profile/opt/gba/docker/mysql/init/01-create-users.sh api/docs/prod-profile/Docker开发和生产环境.txt
+# 最后一条预期无输出、退出码 1，说明这些文件可提交。
+```
+
+历史配置中曾出现的真实数据库、OSS、微信等凭据，应到各服务提供方轮换；删除当前文件中的旧值不会让历史凭据失效。
+开发日志 api/.runtime/logs，Maven 测试只写 api/target/test-logs，详见 [日志](logging.md)、[测试](../testing/README.md)。
+
+
+# 生产配置与 ECS 手动运行
+
+当前只完成配置准备和隔离测试，未在 ECS 上线。下文是未来操作步骤，命令中的 ECS_IP 要替换为目标地址。
+
+## 1. 本机配置位置
+
+生产文件只维护在 `api/docs/prod-profile/opt/gba/`，不再保留 deployment/examples/prod 副本。
+
+| 文件 | Git | 用途 |
+| --- | --- | --- |
+| docker-compose.yml、.env.example | 提交 | 无实际凭据的生产定义和环境变量清单 |
+| docker/mysql/init/01-create-users.sh | 提交 | MySQL 空卷首次初始化账号 |
+| app/Dockerfile、app/.dockerignore | 提交 | 将 Java 21 JAR 构建进镜像 |
+| .env | 忽略 | 本机维护、上传到 ECS 的实际配置 |
+| app/app.jar、db/、backups/ | 忽略 | 未来发布产物和本机数据，不在当前准备阶段填充 |
+
+dev/prod YAML 占位示例位于 `api/src/main/resources/application-*.yml.example`；运行时的 application-prod.yml 本身只含环境占位符，可随 JAR 打包。
+
+新克隆的开发者从仓库根执行一次；已有 .env 不要覆盖：
+
+```powershell
+$productionRoot = 'api/docs/prod-profile/opt/gba'
+if (-not (Test-Path "$productionRoot/.env")) {
+    Copy-Item "$productionRoot/.env.example" "$productionRoot/.env"
+}
+# 填写实际值后校验。此操作不启动服务。
+docker compose -f "$productionRoot/docker-compose.yml" --env-file "$productionRoot/.env" --profile deploy config --quiet
+```
+
+实际 .env 中 MYSQL_ROOT_PASSWORD、FLYWAY_PASSWORD、APP_DB_PASSWORD、REDIS_PASSWORD 按当前约定初始均填 `123456`，JWT 两个 secret 填独立值。示例保留占位符；实际 .env 继续忽略。APP_VERSION 使用本次唯一版本，避免覆盖旧镜像，未来实际对外上线前处理凭据轮换。
+
+MySQL 空卷首次创建库 gba、flyway_deploy（仅 gba.* 迁移权限）和 app（仅 SELECT/INSERT/UPDATE/DELETE）。已有数据卷不会重跑 init，也不会因更改 .env 自动修改 MySQL 账号；需管理员单独变更并同步配置。
+Redis 开启 AOF 和 requirepass，健康检查 REDISCLI_AUTH、app 读取同一 REDIS_PASSWORD。中间件不发布主机端口，应用连接 mysql:3306、redis:6379。
+
+初始化脚本保持 LF 和可读的 0644 模式，官方 MySQL entrypoint 会 source 它。**不要执行 `chmod +x docker/mysql/init/01-create-users.sh`**：脚本使用 entrypoint 提供的 docker_process_sql 函数，设为可执行后会改走独立执行分支。若曾执行过 +x，在 ECS 用 `chmod 644 docker/mysql/init/01-create-users.sh` 恢复；这与 .env 权限无关。
+
+prod app 激活 Spring prod、禁用启动 Flyway，只使用 DML 账号；独立 Flyway CLI 11.7.2 只使用迁移账号，加载 migration/common。Dockerfile 仅 COPY JAR，构建上下文 ./app，不挂载运行期 JAR，不把 .env 放进镜像。
+
+## 2. 首次上线时上传
+
+先在 ECS 终端创建目录（Linux shell）：
+
+```sh
+mkdir -p /opt/gba/docker/mysql/init /opt/gba/app /opt/gba/db/migration \
+  /opt/gba/db/seed/common /opt/gba/logs/app /opt/gba/backups/mysql
+```
+
+开发电脑 PowerShell 建议始终保持在仓库根；这样每条路径都以仓库为基准，避免在生产准备目录和源码目录之间切换。当前无需复制 JAR/SQL 到本地准备目录，未来直接逐项上传同一版本构建结果和源码 SQL：
+
+```powershell
+mvn -f api/pom.xml clean verify
+if ($LASTEXITCODE -ne 0) { throw '验证失败，停止发布' }
+$productionRoot = 'api/docs/prod-profile/opt/gba'
+# 先在实际 .env 中设置本次 APP_VERSION，再上传。
+scp "$productionRoot/docker-compose.yml" root@ECS_IP:/opt/gba/
+if ($LASTEXITCODE -ne 0) { throw '上传生产配置失败' }
+scp "$productionRoot/.env" root@ECS_IP:/opt/gba/
+if ($LASTEXITCODE -ne 0) { throw '上传生产环境文件失败' }
+scp "$productionRoot/docker/mysql/init/01-create-users.sh" root@ECS_IP:/opt/gba/docker/mysql/init/
+if ($LASTEXITCODE -ne 0) { throw '上传初始化脚本失败' }
+scp "$productionRoot/app/Dockerfile" root@ECS_IP:/opt/gba/app/
+if ($LASTEXITCODE -ne 0) { throw '上传 Dockerfile 失败' }
+scp "$productionRoot/app/.dockerignore" root@ECS_IP:/opt/gba/app/
+if ($LASTEXITCODE -ne 0) { throw '上传构建定义失败' }
+scp api/target/gba-merchant-bao-1.0-SNAPSHOT.jar root@ECS_IP:/opt/gba/app/app.jar
+if ($LASTEXITCODE -ne 0) { throw '上传 JAR 失败' }
+scp -r api/src/main/resources/db/migration/. root@ECS_IP:/opt/gba/db/migration/
+if ($LASTEXITCODE -ne 0) { throw '上传 migration 失败' }
+scp -r api/src/main/resources/db/seed/common/. root@ECS_IP:/opt/gba/db/seed/common/
+if ($LASTEXITCODE -ne 0) { throw '上传 common seed 失败' }
+```
+
+上传结果应为 `/opt/gba/db/migration/V*__*.sql`、`/opt/gba/db/seed/common/`，不要形成 migration/migration 或 common/common。只上传 migration/common，不上传 nonprod/devdata/fixture，不改写已应用迁移。
+
+也可以从 `api/docs/prod-profile/opt/gba` 目录逐条执行前五条上传命令，再返回仓库根执行 JAR 和 SQL 上传；但发布手册统一以仓库根为工作目录，降低相对路径出错的概率。实际 `.env` 必须上传，`.env.example` 只用于生成本机配置，不能替代生产环境文件。
+
+ECS 首次空库发布，在 /opt/gba 执行成功链：
+
+```sh
+cd /opt/gba
+docker compose config --quiet &&
+docker compose up -d --wait mysql redis &&
+docker compose --profile deploy build app &&
+docker compose --profile deploy run --rm migrate &&
+docker compose --profile deploy up -d --no-build app
+```
+
+这里的 deploy 是 Compose profile。任何一步失败都不继续；空库从 V1 开始，已有旧库先执行 [核验与显式接管](flyway-baseline.md)，不得直接套首次空库流程。
+检查 `docker compose --profile deploy ps`、`docker compose logs --tail=100 app`、Flyway history，以及 `curl -fsS http://127.0.0.1:8080/api/v1/health`（端口随 APP_PORT 调整）。up 成功只说明容器已启动，健康接口通过后才完成验收。
+
+## 3. 上线后按场景操作
+
+以下都先 `cd /opt/gba`，使用已发布版本对应的 .env、镜像和 SQL。**仅打开 SSH 终端不需要启动命令**，先查看状态：
+
+```sh
+docker compose --profile deploy ps
+```
+
+| 场景 | 命令或流程 | 是否 build/migrate |
+| --- | --- | --- |
+| 服务正常，只是第二次/第三次登录 ECS | ps，必要时 logs | 都不需要 |
+| app 已存在，只想重启进程，配置未改 | `docker compose --profile deploy restart app` | 都不需要 |
+| 整机重启，服务尚未恢复，或之前 down 过 | 使用下方“恢复原版本” | 都不需要 |
+| 只改 app 环境变量，数据库结构未变 | 使用下方“配置生效” | 都不需要 |
+| 更新 JAR、Dockerfile 或数据库迁移 | 使用第 4 节完整更新流程 | build；发布时 migrate 校验并应用待执行项 |
+| 修改 MySQL/Redis 密码或初始化脚本 | 单独安排维护，核对持久账号/客户端配置 | 不能仅靠 restart 改账号，也不删卷 |
+
+恢复原版本：restart: unless-stopped 通常会在 Docker 引擎启动后恢复服务；若曾手动停止或容器已删除，用已有本机镜像启动，不重建镜像、不重新迁移：
+
+```sh
+docker compose config --quiet &&
+docker compose up -d --wait mysql redis &&
+docker compose --profile deploy up -d --no-build app
+```
+
+如果旧镜像已被清理，--no-build 会失败，按第 4 节重新准备对应版本产物，不静默构建不同版本。
+
+只让 app 配置生效（例如 .env 中 JWT 配置变化，或与服务器已完成的凭据变更同步），保留 APP_VERSION；restart 不重新读取环境配置，使用：
+
+```sh
+docker compose config --quiet &&
+docker compose --profile deploy up -d --no-build --no-deps --force-recreate app
+```
+
+不借此自动重启数据库；若配置涉及中间件账号、连接地址，先完成并核验对应维护。变更需重建镜像时走更新发布流程。
+
+## 4. 第二次及后续更新发布
+
+每次发布先在开发电脑完成同版本 clean verify；更新唯一 APP_VERSION，按第 2 节从仓库根上传 JAR、完整且不可变的 migration 和 common seed，按需上传已变更的 Compose/Dockerfile/.env。SQL 已执行的部分会校验后跳过，无新增项的 migrate 仅校验，不会重新执行 V1/V2/V3。
+
+ECS 先保留旧镜像版本及上一版配置，完成新版镜像构建再进入维护：
+
+```sh
+cd /opt/gba
+docker compose config --quiet &&
+docker compose up -d --wait mysql redis &&
+docker compose --profile deploy build app
+```
+
+构建成功后，停止外部写入入口和 app：
+
+```sh
+docker compose --profile deploy stop app
+```
+
+执行 [备份恢复手册](backup-recovery.md) 中结构＋数据完整导出、文件核验和笔记本异机保存。备份失败则停止发布，不自动启动新版。确认迁移风险和备份后：
+
+```sh
+docker compose --profile deploy run --rm migrate &&
+docker compose --profile deploy up -d --no-build app
+```
+
+健康接口、日志、history 和必要业务验收通过才解除维护。此为单实例维护窗口发布，不承诺无停机；若需更新中间件镜像或账号，应将停写和备份前置到中间件变更前，不能直接套上述应用更新步骤。
+
+不要使用省略备份的“一条 SSH 命令”执行已有数据的结构升级。构建或迁移失败不继续下一步；应用回退先核验旧镜像与当前结构兼容性，数据库回退走隔离恢复或评审后的向前修复。正常流程不执行 baseline/clean/repair，不用 down -v。
+
+这套方式是 ECS 本机 Dockerfile 构建；镜像仓库、CI/tag 发布和 RDS 留待后续 change。
+
+
+# JSON 日志与测试隔离
+
+Logback 使用 Spring Boot 内置 StructuredLogEncoder 的 logstash JSON 格式，每行一个 JSON 事件。
+MDC 的 requestId、module、errorCode（产生事件时提供）保留为字段；HTTP 完成日志记录状态与耗时。
+响应 X-Request-Id 与响应体 requestId 保持既有约定。手机号在展示和日志调用前 maskPhone，不能把原始手机号、token、验证码或配置口令拼入日志。
+
+| 文件 | 活动文件大小 | 归档保留 | 归档总量 |
+| --- | --- | --- | --- |
+| application.json | 100MB | 最多7天 | 2GB |
+| audit.json | 100MB | 最多30天 | 1GB |
+
+按日期和序号滚动成 .json.gz。审计 logger 不传播至 application，但继续输出控制台；llm logger 也保留 stdout。ERROR 留在 application.json，不创建 error.json。
+归档总量不包括活动文件，不是目录硬配额，需关注宿主机可用空间。
+
+dev 的 IDEA 工作目录 api，因此文件只落 api/.runtime/logs。prod 容器 /app/logs bind mount 到 ECS /opt/gba/logs/app/，容器重建不会删除宿主机日志。
+MySQL/Redis 数据用命名卷；应用日志用 bind mount，两者不同。
+两套 Compose 的所有服务使用 json-file，每文件20MB、最多5份。dev 的这项限制只针对容器中间件，不能限制 IDEA 应用日志；Docker stdout 轮转也不能限制 MySQL binlog。
+
+Surefire/Failsafe 在启动测试 JVM 前将 LOG_DIR 强制设为 api/target/test-logs 的绝对路径，Logback 只创建该目录的文件 appender。
+不会先落 .runtime 再切换，也不会双写开发目录。测试报告分别位于 target/surefire-reports、target/failsafe-reports；clean 会清除旧 target。
+IDEA 单独运行测试需在测试运行配置 JVM options 中提供 `-DLOG_DIR=<仓库绝对路径>/api/target/test-logs`；应用运行配置不要使用这个参数。
+已有开发历史 .log 文件无需删除或修改；本次测试验证其内容和时间戳不变。
+
+
+# 备份、恢复与迁移失败处理
+
+MySQL 每份 SQL 同时包含结构＋数据，不另出纯数据备份。名称中的 data 不代表只有数据。
+InnoDB 使用 --single-transaction，包含 routines/events/triggers，导出期间禁止并发 DDL。涉及旧库接管或恢复风险的迁移前停止写入。
+生产至少每日一次，结构变更前额外一次；检查退出码、非空文件、代表性结构/记录、异机副本和恢复结果。
+
+## dev 导出（仓库根 PowerShell）
+
+```powershell
+./api/docs/deployment/backup-dev.ps1
+```
+
+脚本读取已运行 dev MySQL 容器中的配置，通过 mysqldump --result-file 在容器 /tmp 生成原始 SQL，再 docker cp 到根 backups/。
+不经 PowerShell 文本重定向，避免编码变化；不打印密码。文件命名 gba_dev-data-YYYYmmdd-HHMMSS-fff.sql，同日不覆盖，整个 backups/ 忽略 Git。
+脚本只操作根 Compose 的 dev 服务。备份前确认目标项目 gba-dev、库 gba_dev；旧库若在其他实例，应按实际连接参数另行导出，不能把这份 dev 空数据备份当作旧库备份。
+
+## ECS 导出与笔记本异机保存
+
+在 ECS /opt/gba 运行，先停止 app 写入（首次空库可略过停应用），禁止并发 DDL：
+
+```sh
+set -eu
+cd /opt/gba
+mkdir -p /opt/gba/backups/mysql
+stamp=$(date +%Y%m%d-%H%M%S)-$$
+file="gba-data-$stamp.sql"
+docker compose exec -T mysql sh -c 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysqldump -uroot --single-transaction --routines --events --triggers --no-tablespaces --set-gtid-purged=OFF gba --result-file="$1"' sh "/tmp/$file"
+docker compose cp "mysql:/tmp/$file" "/opt/gba/backups/mysql/$file"
+test -s "/opt/gba/backups/mysql/$file"
+docker compose exec -T mysql rm -f "/tmp/$file"
+sha256sum "/opt/gba/backups/mysql/$file"
+```
+
+在笔记本的仓库根 PowerShell 下载（文件名替换为实际导出名）：
+
+```powershell
+New-Item backups/production -ItemType Directory -Force | Out-Null
+scp root@ECS_IP:/opt/gba/backups/mysql/gba-data-YYYYmmdd-HHMMSS-PID.sql backups/production/
+if ($LASTEXITCODE -ne 0) { throw '异机下载失败' }
+Get-FileHash backups/production/gba-data-YYYYmmdd-HHMMSS-PID.sql -Algorithm SHA256
+```
+
+比较两端校验和并定期恢复演练。ECS 本机备份和命名卷不构成异机备份；目前异机只保存至自己的笔记本。
+
+## 恢复演练
+
+永远先恢复到独立临时 MySQL（可销毁容器）和新库，不覆盖 dev/prod。SQL 不带 --databases，因此可恢复到指定新库。
+下面示例只在自行创建的 rehearsal-mysql 容器上执行，容器管理员密码通过其环境提供：
+
+```powershell
+docker cp backups/gba_dev-data-实际日期.sql rehearsal-mysql:/tmp/restore.sql
+if ($LASTEXITCODE -ne 0) { throw '上传失败' }
+docker exec rehearsal-mysql sh -c 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysql -uroot -e "CREATE DATABASE gba_restore"'
+if ($LASTEXITCODE -ne 0) { throw '创建隔离恢复库失败' }
+docker exec rehearsal-mysql sh -c 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysql -uroot gba_restore < /tmp/restore.sql'
+if ($LASTEXITCODE -ne 0) { throw '恢复失败' }
+```
+
+核对 SHOW CREATE TABLE、所有业务表行数、代表性稳定业务标识和 Flyway 历史；针对历史库的管理核对允许对比全表行数，这不等同业务用例依赖空表。
+ProductionInfrastructureIT 已用隔离 MySQL 验证结构、代表性行及 version 恢复；它不证明任意生产备份都可恢复。
+
+## 失败与回退
+
+1. validate/migrate 失败立即停止后续发布和新版 app 启动，保存日志与失败 history，不自动 clean、不删卷、不用 repair 掩盖差异。
+2. MySQL DDL 可能已部分提交，不能假定 Flyway 失败就整批回滚。停写后确认当前结构与已执行语句，保留证据。
+3. 首选评审后向前修复。需要数据库回退时，将迁移前完整 SQL 恢复到隔离库，核对结构、数据、历史并验证兼容的旧应用，再受控切换。
+4. 迁移后已有新写入时先评估丢失范围、补偿和对账；禁止直接覆盖。旧镜像回退只适用于当前数据库向后兼容，不等于数据库自动降级。
+5. 不承诺 Flyway undo 或自动反向 SQL。history 的任何人工修复都需另行调查和评审，不能作为常规恢复捷径。
+
+## Redis
+
+dev/prod 开启 AOF、数据在命名卷。若仅缓存或可重新登录的会话可重建，则不预建备份作业。
+后续模块若存不可丢状态，明确一致性策略：RDB 可触发 BGSAVE，确认 LASTSAVE 更新及后台保存结束后保存已完成的快照；
+Redis 7 多段 AOF 应按其原生备份流程在受控窗口暂停自动重写并确认无重写，再复制完整 appendonlydir（含 manifest），完成后恢复配置，或停服后一致性复制。
+不得只在线复制一个 AOF 文件。恢复到隔离实例，核对代表性键、TTL 和数据类型后再切换。
+生产存 /opt/gba/backups/redis/ 并下载笔记本。其他中间件首次引入时再定义 /opt/gba/backups/<service>/，本次不预建作业。
+
+
+# Flyway 空库初始化与旧库接管
+
+日常 dev、所有新开发者和常规集成测试从空库执行 V1→V2→V3，不执行 baseline。
+默认 baseline-version=1 只是显式 baseline 操作的版本参数；baseline-on-migrate=false 时空库不会跳过 V1。
+所有执行方保持 validate-on-migrate=true、clean-disabled=true、out-of-order=false，已应用 V1/V2/V3 不可改写。
+
+V1 是11张旧餐饮表的结构快照，无数据；V2 增加 merchant 租户根；V3 增加其 currency_code。
+V2/V3 不会替旧业务表补 merchant_id，不会把旧餐饮数据转换成新商贸数据。租户根种子与后续业务数据有单独层次。
+
+## 仅接管已核验旧库
+
+1. 确认实例、库名、负责人和停写窗口，先 [备份结构＋数据](backup-recovery.md)，在隔离库恢复验证。
+2. 另建参考空库，仅执行仓库批准的 V1。用 SHOW CREATE TABLE 与 information_schema 逐项核对目标和参考：表名、列顺序/类型/长度、默认值、NULL、主键、索引/唯一约束、外键、字符集/排序规则、引擎及 MySQL 版本兼容性。AUTO_INCREMENT 当前值等运行状态单独记录，不误判为模型差异。
+3. 目标不得存在 flyway_schema_history 或 merchant；有缺表、多表、字段/索引/约束差异时立即停止并记录差异，不能因为“差不多”就 baseline。
+4. 保留核验记录及旧表行数/代表性主键，在恢复出的隔离演练库先执行一次显式 baseline-1，然后 migrate，核对旧行及新结构。
+5. 演练通过才允许在停写目标库重复经审核的操作。普通应用启动应拒绝无 history 的非空库。
+
+## 显式命令示例
+
+独立 CLI 与项目一致，版本11.7.2。准备一个被忽略的 api/.runtime/flyway-legacy.env，填入已核验演练库的实际连接：
+
+```dotenv
+FLYWAY_URL=jdbc:mysql://legacy-mysql:3306/legacy_rehearsal?allowPublicKeyRetrieval=true&useSSL=false
+FLYWAY_USER=REPLACE_WITH_VERIFIED_OPERATOR
+FLYWAY_PASSWORD=REPLACE_WITH_OPERATOR_PASSWORD
+FLYWAY_LOCATIONS=filesystem:/flyway/sql
+FLYWAY_BASELINE_VERSION=1
+FLYWAY_BASELINE_ON_MIGRATE=false
+FLYWAY_VALIDATE_ON_MIGRATE=true
+FLYWAY_CLEAN_DISABLED=true
+FLYWAY_OUT_OF_ORDER=false
+```
+
+本地隔离演练实例若在 gba-dev_default 网络上，且网络别名为 legacy-mysql，仓库根 PowerShell 执行。这里的 legacy-mysql 必须指向单独创建的演练容器，不能替换成 dev Compose 的 mysql 服务：
+
+```powershell
+$migration = (Resolve-Path api/src/main/resources/db/migration).Path
+docker run --rm --network gba-dev_default --env-file api/.runtime/flyway-legacy.env --mount "type=bind,source=$migration,target=/flyway/sql,readonly" flyway/flyway:11.7.2 -baselineVersion=1 baseline
+if ($LASTEXITCODE -ne 0) { throw 'baseline 失败，停止' }
+docker run --rm --network gba-dev_default --env-file api/.runtime/flyway-legacy.env --mount "type=bind,source=$migration,target=/flyway/sql,readonly" flyway/flyway:11.7.2 migrate
+if ($LASTEXITCODE -ne 0) { throw '迁移失败，停止' }
+docker run --rm --network gba-dev_default --env-file api/.runtime/flyway-legacy.env --mount "type=bind,source=$migration,target=/flyway/sql,readonly" flyway/flyway:11.7.2 validate
+if ($LASTEXITCODE -ne 0) { throw '校验失败，停止' }
+```
+
+其他环境按核验的地址/网络替换，不照抄目标库。baseline 会向 flyway_schema_history 写入 type=BASELINE、version=1，表示旧结构已存在，不执行 V1。
+migrate 随后只执行 V2/V3。核对 history 中 BASELINE1、SQL2/3 均成功，merchant 新结构存在，旧表行数和代表性行不变。
+空库 history 应是 SQL1/2/3，而不是 BASELINE1。后续日常流程只 validate/migrate，不再 baseline。
+失败时按备份恢复或向前修复处理，绝不能通过 clean、删卷、repair 来掩盖差异。
+
+FlywayMigrationIT 的小型独立测试验证 V1 构造旧结构→普通 migrate 拒绝→显式 baseline1→V2/V3→旧行保留；不替代真实旧库人工结构核验。

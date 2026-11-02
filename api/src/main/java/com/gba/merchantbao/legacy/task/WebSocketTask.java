@@ -2,12 +2,14 @@ package com.gba.merchantbao.legacy.task;
 
 import com.gba.merchantbao.legacy.websocket.WebSocketServer;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
 @Component
+@ConditionalOnProperty(prefix = "merchant.scheduling", name = "enabled", havingValue = "true", matchIfMissing = true)
 public class WebSocketTask {
     @Autowired
     private WebSocketServer webSocketServer;

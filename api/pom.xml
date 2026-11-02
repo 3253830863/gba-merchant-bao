@@ -107,6 +107,19 @@
 
     <build>
         <plugins>
+            <!-- 打包jar部署上线的时候，把`application-dev.yml / application-dev.yaml` 排除掉 -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <configuration>
+                    <excludes>
+                        <exclude>application-dev.yml</exclude>
+                        <exclude>application-dev.yaml</exclude>
+                    </excludes>
+                </configuration>
+            </plugin>
+
+            <!-- JVM 测试日志隔离 -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
@@ -116,6 +129,7 @@
                     </systemPropertyVariables>
                 </configuration>
             </plugin>
+            <!-- JVM 测试日志隔离 -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-failsafe-plugin</artifactId>
@@ -133,6 +147,7 @@
                     </execution>
                 </executions>
             </plugin>
+
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
