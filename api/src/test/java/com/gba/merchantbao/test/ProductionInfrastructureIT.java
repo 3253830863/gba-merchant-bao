@@ -42,7 +42,10 @@ class ProductionInfrastructureIT {
                 .locations("classpath:db/migration", "classpath:db/seed/common")
                 .baselineVersion("1").baselineOnMigrate(false).cleanDisabled(true)
                 .validateOnMigrate(true).outOfOrder(false).load();
-        assertThat(flyway.migrate().migrationsExecuted).isEqualTo(3);
+        flyway.migrate();
+        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("4");
+        assertThat(flyway.info().applied()).allSatisfy(info ->
+                assertThat(info.getState()).isEqualTo(org.flywaydb.core.api.MigrationState.SUCCESS));
         flyway.validate();
         try (var app = DriverManager.getConnection(mysql.getJdbcUrl(), "app", "application-test");
              var statement = app.createStatement()) {
@@ -93,7 +96,7 @@ class ProductionInfrastructureIT {
         var history = mysql.execInContainer("sh", "-c", "MYSQL_PWD=\"$MYSQL_ROOT_PASSWORD\" mysql -N -uroot "
                 + "gba -e 'SELECT version FROM flyway_schema_history WHERE success=1 ORDER BY installed_rank DESC LIMIT 1'");
         successful(history);
-        assertThat(history.getStdout().trim()).isEqualTo("3");
+        assertThat(history.getStdout().trim()).isEqualTo("4");
     }
 
     @Test

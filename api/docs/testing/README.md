@@ -24,7 +24,7 @@ Surefire 的单元和契约测试报告位于 `api/target/surefire-reports`，Fa
 
 Maven 的 Surefire、Failsafe 会将 `LOG_DIR` 设置为 `api/target/test-logs` 的绝对路径，因此测试日志不会追加到开发或生产日志中。执行 Maven 的 `clean` 阶段时，这些测试日志会被清理。应用运行时通过 `logging.file.path` 或 `LOG_DIR` 配置日志位置：工作目录设为 `api/` 时，开发日志默认写入 `api/.runtime/logs`；生产环境需要将 `LOG_DIR` 指向外部可写日志目录或部署挂载目录。在 IDE 中直接运行测试时，可以通过 JVM 系统属性 `LOG_DIR` 指定输出目录。
 
-MySQL 测试覆盖空库迁移、重复迁移、租户测试数据的幂等性，以及模拟旧数据库结构的显式 baseline 和升级，并验证旧测试记录得到保留。Redis 测试使用保留的旧序列化方式和配置，通过实际断言验证字符串、哈希、列表、集合、有序集合和键操作。
+MySQL 测试覆盖空库 V1→V4、已登记 V3→V4、重复迁移不改写认证账号/旧行/历史、租户测试数据的幂等性，以及模拟旧数据库结构的显式 baseline 和升级。AuthSchemaIT 验证新账号表的非空、唯一、状态与同租户创建者约束；AuthPersistenceIT 验证真实 Mapper 索引查询、租户更新/删除边界和本人资源范围。Redis 测试使用保留的旧序列化方式和配置，通过实际断言验证字符串、哈希、列表、集合、有序集合和键操作；认证 Redis 会话尚未实现。
 
 上述测试使用构造的测试数据。生产数据库的备份、恢复演练和结构对比仍需在发布流程中单独执行，不能用这些测试替代。
 
@@ -41,9 +41,10 @@ MySQL 测试覆盖空库迁移、重复迁移、租户测试数据的幂等性�
 common 当前没有必需记录；nonprod 是 M_3C_DEMO 和 M_ISOLATION_TEST 两个稳定租户根，生产不加载。
 商品/SKU、订单、物流、知识和会话演示数据按模块增量加入 devdata，本 change 不预建模块表。
 FoundationApplicationIT 用 @Sql 加载独立的 M_FIXTURE_RUNTIME 租户，按稳定编码定位，并在 @AfterTransaction 验证事务回滚；不依赖业务表总数或空表，不清空共享种子。
+AuthPersistenceIT 另用 @Sql 显式加载 db/fixture/auth_accounts.sql，按商户编码关联两个既有租户，提供独立测试员工/消费者及跨租户同号数据；测试事务回滚后按 fixture 主键验证无残留。该 fixture 不在 Flyway seed/devdata 中，测试密码不作为 dev 演示密码。字段/索引与 Snowflake worker 配置见 [认证数据设计](../auth/data-design.md)。
 HTTP/异步测试的 fixture 无法由测试事务回滚时，必须按本用例稳定业务标识限定清理。
 
-默认 baseline-version=1 不会使空库跳过 V1；所有普通集成测试从空库按序执行 V1/V2/V3。另保留一个短小旧库接管场景，先验证非空库拒绝，再显式 baseline1 后迁移 V2/V3。
+默认 baseline-version=1 不会使空库跳过 V1；所有普通集成测试从空库按序执行 V1/V2/V3/V4。另保留一个短小旧库接管场景，先验证非空库拒绝，再显式 baseline1 后迁移 V2/V3/V4。
 ProductionInfrastructureIT 复用生产初始化脚本验证 DML/迁移权限分离、已有数据目录不重跑 init、Redis 认证和结构＋数据导出恢复；使用临时密码和可销毁实例，不连接实际生产。
 
 QA 可选择在 dev profile 环境人工验收，通过后再进入未来 prod；没有 QA 也可直接进入 prod，无 qa profile。本次没有云发布或 CI/tag 流水线。

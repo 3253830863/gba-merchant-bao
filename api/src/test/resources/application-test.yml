@@ -11,6 +11,8 @@ spring:
     locations: classpath:db/migration,classpath:db/seed/common,classpath:db/seed/nonprod
 
 merchant:
+  id:
+    worker-id: 1023
   scheduling:
     enabled: false
   datasource:

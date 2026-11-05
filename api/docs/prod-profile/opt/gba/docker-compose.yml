@@ -86,6 +86,7 @@ services:
       REDIS_PASSWORD: ${REDIS_PASSWORD:?Required}
       LOG_DIR: /app/logs
       ADMIN_JWT_SECRET: ${ADMIN_JWT_SECRET:?Required}
+      MERCHANT_ID_WORKER_ID: ${MERCHANT_ID_WORKER_ID:?Required; unique per live app instance}
       USER_JWT_SECRET: ${USER_JWT_SECRET:?Required}
     volumes:
       - /opt/gba/logs/app:/app/logs

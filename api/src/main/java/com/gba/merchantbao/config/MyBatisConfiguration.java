@@ -1,0 +1,11 @@
+package com.gba.merchantbao.config;
+
+import org.apache.ibatis.annotations.Mapper;
+import org.mybatis.spring.annotation.MapperScan;
+import org.springframework.context.annotation.Configuration;
+
+@Configuration(proxyBeanMethods = false)
+@MapperScan(basePackages = {"com.gba.merchantbao.legacy.mapper", "com.gba.merchantbao.auth.infrastructure.persistence"},
+        annotationClass = Mapper.class)
+public class MyBatisConfiguration {
+}

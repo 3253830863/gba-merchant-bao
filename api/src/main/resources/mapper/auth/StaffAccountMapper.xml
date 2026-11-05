@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.gba.merchantbao.auth.infrastructure.persistence.StaffAccountMapper">
+  <sql id="columns">id, merchant_id, username, phone, display_name, password_hash, status, created_at, updated_at, created_by, version</sql>
+  <select id="findByUsername" resultType="com.gba.merchantbao.auth.infrastructure.persistence.StaffAccountRow" flushCache="true" useCache="false">
+    SELECT <include refid="columns"/> FROM merchant_staff_account WHERE merchant_id = #{merchantId} AND username = #{username}
+  </select>
+  <select id="findByPhone" resultType="com.gba.merchantbao.auth.infrastructure.persistence.StaffAccountRow" flushCache="true" useCache="false">
+    SELECT <include refid="columns"/> FROM merchant_staff_account WHERE merchant_id = #{merchantId} AND phone = #{phone}
+  </select>
+  <select id="findById" resultType="com.gba.merchantbao.auth.infrastructure.persistence.StaffAccountRow" flushCache="true" useCache="false">
+    SELECT <include refid="columns"/> FROM merchant_staff_account WHERE merchant_id = #{merchantId} AND id = #{accountId}
+  </select>
+  <insert id="insert">
+    INSERT INTO merchant_staff_account (id, merchant_id, username, phone, display_name, password_hash, status, created_by)
+    VALUES (#{id}, #{merchantId}, #{username}, #{phone}, #{displayName}, #{passwordHash}, #{status}, #{createdBy,jdbcType=BIGINT})
+  </insert>
+  <update id="updateDisplayName">
+    UPDATE merchant_staff_account SET display_name = #{displayName}, version = version + 1
+    WHERE merchant_id = #{merchantId} AND id = #{accountId} AND version = #{expectedVersion}
+  </update>
+  <delete id="delete">
+    DELETE FROM merchant_staff_account WHERE merchant_id = #{merchantId} AND id = #{accountId} AND version = #{expectedVersion}
+  </delete>
+</mapper>

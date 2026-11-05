@@ -12,6 +12,8 @@ logging:
     com.gba.merchantbao.legacy.mapper: info
 
 merchant:
+  id:
+    worker-id: ${MERCHANT_ID_WORKER_ID}
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
     host: ${DB_HOST}

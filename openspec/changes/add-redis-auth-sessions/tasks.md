@@ -8,12 +8,12 @@
 
 ## 2. Flyway 表结构、索引与数据边界
 
-- [ ] 2.1 新增 `V4__auth_accounts.sql` 创建 consumer_account 与 merchant_staff_account，包含非空租户、租户内唯一手机号/用户名、组合资源键、员工创建者同租户引用、状态/时间/版本字段；用 MySQL Testcontainers 检查约束和跨租户关系拒绝，验证已发布 V1/V2/V3 校验和不变。
-- [ ] 2.2 新增最小 Snowflake ID 生成边界及明确 worker-id 配置，供认证新记录使用；单元验证并发唯一、时钟回退拒绝及字符串化 API ID，文档说明多实例 worker 不可重复。
-- [ ] 2.3 新增 auth Mapper/XML 与租户解析边界，更新新旧 Mapper 扫描和递归 XML 路径；以真实索引查询验证消费者手机号、员工用户名/手机号及租户资源定位，确认更新/删除与 created_by 写入不能跨租户。
-- [ ] 2.4 在 `src/test/resources/db/fixture/auth_accounts.sql` 提供独立测试账号：两个租户各有员工、样板租户有两名消费者、对照租户有复用手机号的消费者；由测试 `@Sql` 显式加载，独立于 devdata 和演示密码，按商户编码解析租户，验证唯一性、跨租户隔离与资源归属，fixture 事务回滚或按稳定标识清理，不清空业务表。
-- [ ] 2.5 扩展迁移集成验证为空库 V1→V4、已登记 V3→V4、重复 migrate 不重建/改写数据；修正基础启动测试硬编码迁移条数为版本/成功状态检查，继续保留未登记非空旧库拒绝与显式 baseline 场景。
-- [ ] 2.6 交付 `api/docs/auth/data-design.md` 的表/字段/索引部分，解释每个索引服务的查询、规范化手机号原值与展示掩码边界、旧表不迁入、迁移备份和向前修复；核对 migration 仅 DDL，认证演示账号未放 common/nonprod，测试账号未放任何 Flyway seed。
+- [x] 2.1 新增 `V4__auth_accounts.sql` 创建 consumer_account 与 merchant_staff_account，包含非空租户、租户内唯一手机号/用户名、组合资源键、员工创建者同租户引用、状态/时间/版本字段；用 MySQL Testcontainers 检查约束和跨租户关系拒绝，验证已发布 V1/V2/V3 校验和不变。
+- [x] 2.2 新增最小 Snowflake ID 生成边界及明确 worker-id 配置，供认证新记录使用；单元验证并发唯一、时钟回退拒绝及字符串化 API ID，文档说明多实例 worker 不可重复。
+- [x] 2.3 新增 auth Mapper/XML 与租户解析边界，更新新旧 Mapper 扫描和递归 XML 路径；以真实索引查询验证消费者手机号、员工用户名/手机号及租户资源定位，确认更新/删除与 created_by 写入不能跨租户。
+- [x] 2.4 在 `src/test/resources/db/fixture/auth_accounts.sql` 提供独立测试账号：两个租户各有员工、样板租户有两名消费者、对照租户有复用手机号的消费者；由测试 `@Sql` 显式加载，独立于 devdata 和演示密码，按商户编码解析租户，验证唯一性、跨租户隔离与资源归属，fixture 事务回滚或按稳定标识清理，不清空业务表。
+- [x] 2.5 扩展迁移集成验证为空库 V1→V4、已登记 V3→V4、重复 migrate 不重建/改写数据；修正基础启动测试硬编码迁移条数为版本/成功状态检查，继续保留未登记非空旧库拒绝与显式 baseline 场景。
+- [x] 2.6 交付 `api/docs/auth/data-design.md` 的表/字段/索引部分，解释每个索引服务的查询、规范化手机号原值与展示掩码边界、旧表不迁入、迁移备份和向前修复；核对 migration 仅 DDL，认证演示账号未放 common/nonprod，测试账号未放任何 Flyway seed。
 
 ## 3. JWT、运行配置与兼容密钥
 

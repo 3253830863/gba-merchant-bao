@@ -5,6 +5,7 @@
 ## 文档入口
 
 - [包结构与兼容边界](docs/architecture/packages.md)
+- [认证表、索引与数据边界](docs/auth/data-design.md)
 - [自动化测试、容器隔离和日志目录](docs/testing/README.md)
 - [本地持久联调与 IDEA/Apifox](docs/deployment/local-development.md)
 - [Flyway 空库与旧库接管](docs/deployment/flyway-baseline.md)
