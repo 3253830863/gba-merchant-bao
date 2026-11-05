@@ -2,178 +2,178 @@
 
 ## Purpose
 
-定义商户宝消费者与商户员工从账号建立、凭证验证到会话退出的可验证行为，为后续商品、订单、物流和 Agent 提供可信身份、商户边界、角色限制与资源归属校验。
+定义消费者首次短信登录建号、商户员工开通和登录、双 token 生命周期、退出及三层授权的目标行为。任务组 1 冻结契约；任务组 2 及之后仍待实现。
 
 ## ADDED Requirements
 
-### Requirement: Consumers shall register explicitly within the selected merchant
+### Requirement: Consumers shall automatically obtain a merchant-scoped account on first SMS login
 
-系统 MUST 允许消费者在选定商户下以手机号和 REGISTER 用途短信验证码单独注册，注册成功不自动登录。消费者登录 MUST 使用 LOGIN 用途验证码且账号已经存在；登录不得创建账号。同手机号 MUST 可在不同商户独立注册，同一商户不得重复注册。登录前的商户编码由服务端解析为有效租户，客户端不得指定账号 ID、角色或内部租户 ID。
+系统 MUST 在 ACTIVE 店铺下用手机号和有效 LOGIN 短信验证码完成单一登录流程，首次验证成功自动建号，已有账号复用；MUST NOT 提供独立消费者注册入口、REGISTER 挑战、首次建号提示或协议同意门槛。账号 MUST 在商户内唯一，同手机号在不同商户的账号、会话与数据独立。消费者 MUST NOT 手输商户编码或指定内部租户、角色和主体 ID。
 
-#### Scenario: Consumer completes registration and then logs in
-- **WHEN** 消费者在有效商户下提交有效的 REGISTER 验证码并完成注册，随后提交新的 LOGIN 验证码登录
-- **THEN** 注册返回 201 与消费者标识但不返回 token，登录返回 200 与仅属于该商户消费者的会话
+#### Scenario: First and subsequent SMS login
+- **WHEN** 消费者从 /store/{storeSlug} 首页提交手机号和有效验证码
+- **THEN** 服务端解析有效商户，创建或复用该商户消费者，成功均返回 200 双 token 登录结果，不要求先注册
 
-#### Scenario: Login does not imply registration
-- **WHEN** 尚未注册的手机号提交有效 LOGIN 验证码
-- **THEN** 系统返回 401 和统一凭证失败码，不创建账号或会话，提示流程引导用户单独注册
+#### Scenario: Concurrent creation resolves to one account
+- **WHEN** 同一商户规范化手机号的多个独立有效挑战通过，建号发生唯一冲突
+- **THEN** 数据库最多保留一个账号，各请求可复用该账号并重新核验状态，不返回重复注册 409；同一已消费挑战重放仍为验证码无效
 
-#### Scenario: Duplicate and concurrent registrations
-- **WHEN** 同一商户、同一规范化手机号的请求通过有效挑战后，发现账号已存在或并发插入发生唯一冲突
-- **THEN** 最多存在一个账号，该重复注册返回 409；仅重放已消费验证码的请求返回验证码无效；不同商户的同手机号账号独立，不共享登录态或私有资源
+#### Scenario: Disabled account cannot be recreated
+- **WHEN** 有效短信验证对应的租户内账号已 DISABLED
+- **THEN** 返回统一 401/11001，不重新创建账号绕过停用，不建立会话
 
-#### Scenario: Account identity cannot be supplied by a client
-- **WHEN** 注册或登录请求包含不允许的 role、merchantId、customerId、accountId 等字段
-- **THEN** 请求返回 400，不采纳客户端身份，不创建提升权限的账号
+#### Scenario: Account commits before Redis session creation fails
+- **WHEN** 首次账号创建已提交但 Redis 会话写入失败
+- **THEN** 返回 503 且不含任一 token，保留已提交账号且不恢复验证码；重新取码可登录该账号
 
-### Requirement: Merchant staff accounts shall be provisioned inside the merchant
+### Requirement: Public store context shall locate tenants without granting authority
 
-系统 MUST 采用受控员工子账号开通流程：dev 的首个员工由 devdata 演示种子提供，自动化测试员工由 test fixture 显式加载；后续员工由已登录的本商户 `MERCHANT_STAFF` 手动开通，成功不替新员工登录。匿名访问者和消费者 MUST NOT 注册员工或加入商户。新员工固定为 `MERCHANT_STAFF`，租户从创建者身份取得；首期合并角色共享开通能力，不建设 RBAC 或匿名商户注册。生产租户及首员工的建立方式延期，不在本 change 提供命令、HTTP bootstrap 接口或生产账号种子。
+匿名消费者短信和登录 MUST 使用 /api/v1/stores/{storeSlug}/auth 路径，店铺首页自动携带公开 locator，初期可复用 merchantCode；无上下文 MUST 先进入店铺。公开资源按 URL 定位，私有通用资源 MUST 仅按可信 token/Redis Actor 限定租户，不要求自定义店铺请求头，不采纳客户端商户覆盖。refresh MUST 使用统一 /api/v1/auth/refresh，商户和类型从 opaque refresh 摘要对应的可信记录解析，不重复传 storeSlug/merchantId/role。
 
-#### Scenario: Staff manually provisions a colleague
-- **WHEN** 有效员工提交用户名、手机号和符合规则的初始密码
-- **THEN** 系统返回 201 与本商户新员工标识，保存 BCrypt 密码摘要，不返回密码或 token；新员工能够单独登录
+#### Scenario: Consumer opens store B while signed into store A
+- **WHEN** A 已登录，消费者打开 B 的公开主页或请求 B 的私有功能
+- **THEN** B 公开页面可匿名浏览；前端只选 B 的凭证，B 无会话则触发该店登录，保留 A 的凭证与会话，回 A 可继续使用或按需刷新
 
-#### Scenario: Unauthorized staff registration is rejected
-- **WHEN** 匿名访问者或消费者请求员工开通，或员工试图指定另一个商户/平台管理员角色
-- **THEN** 匿名请求返回 401，消费者返回 403，不允许的身份字段返回 400，不产生跨租户或平台账号
+#### Scenario: A generic private endpoint receives an A credential
+- **WHEN** 前端向通用私有接口误发 A token
+- **THEN** 后端按 A Actor 限定数据，不能推断页面正在 B；前端必须按店铺选凭证并核对 principal，不宣称该请求会自动返回 B 专属 401
 
-#### Scenario: First staff is available in development and tests
-- **WHEN** dev 加载演示数据，或自动化测试通过 `@Sql` 加载自己的 fixture
-- **THEN** 各自的样板/隔离商户内均有可登录的首员工；test 不读取 devdata，生产初始化不加载演示账号
+#### Scenario: Explicit protected store URL conflicts with the principal
+- **WHEN** 一个有效身份访问显式保护的店铺 URL，解析租户与该身份不符
+- **THEN** 返回 403；具体资源跨租户或非本人查询仍与不存在统一 404，无有效凭证才返回 401
 
-### Requirement: Staff login shall require merchant-scoped password credentials
+### Requirement: Merchant staff shall be provisioned inside the merchant and use scoped passwords
 
-员工登录 MUST 使用商户编码、用户名或手机号和 BCrypt 密码；用户名和手机号在商户内分别唯一。系统 MUST 规范化登录标识并消除用户名与手机号的歧义。未知商户、未知账号、密码错误、账号或商户停用 MUST 返回统一 401 凭证失败，不泄露账号存在与状态。平台管理员首期不能登录。
+系统 MUST 由 devdata 演示或独立 test fixture 提供首员工，后续员工由已登录的本商户 MERCHANT_STAFF 开通，固定相同角色，不替同事登录。员工 MUST 使用 merchantCode + 用户名/手机号 + BCrypt 密码登录；用户名、手机号各自在租户内唯一。首期合并管理员/客服共享开通能力，不建设 RBAC，不提供匿名员工注册、生产首员工命令/HTTP bootstrap 或生产账号种子。
 
-#### Scenario: Staff logs in with either supported identifier
-- **WHEN** 员工在同一商户分别使用其用户名或手机号及正确密码登录
-- **THEN** 两种方式均解析到同一个员工主体并签发独立会话，响应不含密码摘要或原始手机号
+#### Scenario: Staff provisions a colleague
+- **WHEN** 有效员工提交用户名、手机号、显示名和初始密码
+- **THEN** 服务端取当前商户/创建者，保存 BCrypt cost=12 摘要，返回 201、Location 与脱敏摘要，不返回密码/hash/token；同事可独立密码登录
 
-#### Scenario: Merchant boundary applies to credentials
-- **WHEN** 相同用户名或手机号存在于两个商户，或者用商户 A 的密码登录商户 B
-- **THEN** 系统只验证目标商户账号，不能因为另一个商户存在同名账号而成功认证
+#### Scenario: Unauthorized creation and identity injection
+- **WHEN** 匿名或消费者开通员工，或者有效员工提交 merchantId/role/accountId 等未声明字段
+- **THEN** 分别返回 401、403、400，不创建跨租户或平台账号
 
-#### Scenario: Invalid or inactive credentials
-- **WHEN** 未知商户、未知员工、错误密码、停用账号或停用商户提交登录
-- **THEN** 系统返回相同 401 业务码与通用消息，不签发会话；连续失败触发有限时间限流
+#### Scenario: Staff credentials are tenant scoped
+- **WHEN** 同一员工用用户名或手机号登录，或相同标识存在于不同商户
+- **THEN** 两种标识定位同一租户内员工，不使用其他商户密码验证；未知商户/账号、错密码和停用均为相同 401/11001，平台管理员没有登录入口
 
-### Requirement: SMS challenges shall be scoped single-use and rate-limited
+### Requirement: SMS challenges shall be single-use scoped and rate-limited
 
-短信挑战 MUST 绑定规范化手机号、商户与 REGISTER/LOGIN 用途；使用六位随机验证码、300 秒有效期、一次性原子消费和最多五次错误尝试。发送与登录 MUST 具有共享存储支持的限流。验证码 MUST NOT 跨商户、跨用途、过期或重复使用；重新发送成功后旧验证码失效。凭证校验失败不得产生账号或登录会话。
+LOGIN 短信挑战 MUST 绑定商户和规范化手机号，六位安全随机、300 秒、摘要存储、一次原子消费、最多五次错误。重发 MUST 使旧挑战失效，发送/消费/失败清理 MUST 按 challengeId 区分代际；发送、手机号/IP 和密码失败配额 MUST 由共享存储原子维护 TTL。用户名/手机号 MUST 共享员工账号失败计数，未知账号执行 dummy BCrypt，不信任任意 X-Forwarded-For。
 
-#### Scenario: A challenge is consumed concurrently
-- **WHEN** 两个请求同时使用同一有效验证码
-- **THEN** 最多一个请求通过挑战校验，其余返回 400 验证码无效，不因并发重复签发会话
+#### Scenario: A challenge is used concurrently or outside its scope
+- **WHEN** 同挑战并发使用、跨商户/手机号使用，或已过期/消费
+- **THEN** 同挑战最多一次通过，其余统一 400/11002，不产生重复验证成功
 
-#### Scenario: Challenge scope and expiry are enforced
-- **WHEN** 验证码被用于另一个商户、另一个手机号、另一个用途，或已过期/已使用
-- **THEN** 系统返回同一个验证码无效业务码，不披露具体失败细节
+#### Scenario: Attempts exceed the configured limit
+- **WHEN** 60 秒内重发、超过手机号/IP 配额，或验证码累计五次错误
+- **THEN** 配额超限返回 429/11003 和 Retry-After，五次错误使挑战失效；并发不绕过计数或留下永久 key
 
-#### Scenario: Excessive attempts are blocked
-- **WHEN** 60 秒内重复发送、超过配置的发送配额、密码失败配额，或同一验证码达到五次错误
-- **THEN** 发送/登录配额返回 429 与 Retry-After；挑战达到五次错误后失效；次数增加与过期设置在并发下有效
+### Requirement: Simulated SMS shall remain a non-production capability
 
-### Requirement: Simulated SMS shall remain a non-production development capability
+系统 MUST 通过可替换发送边界模拟短信，不调用真实 SMS。仅 dev/test 可 mock；dev 显式开启才回显 debugCode，日志 MUST NOT 记录验证码。prod 模拟/回显 MUST 启动失败；没有真实适配器时 provider=disabled 并返回 503，不伪报已发送。
 
-首期 MUST 通过可替换短信发送边界模拟发送，不调用阿里云或其他真实短信服务。只有 dev/test 可使用模拟发送；dev 可显式开启调试验证码响应供手动联调，普通应用/审计日志不得记录验证码。prod MUST 禁止模拟发送和调试码输出；尚无真实短信适配器时短信相关能力保持不可用并返回可识别结果，不伪装成已发送。
+#### Scenario: Developer obtains a test code
+- **WHEN** dev 显式开启 mock/debugCode 并申请短信
+- **THEN** 响应可用于首次或已有消费者登录，常规与审计日志无验证码、原始手机号或 token；发送失败按 generation 清理而不误删下一挑战
 
-#### Scenario: Developer exercises phone login
-- **WHEN** dev 开启模拟短信与调试码回显并请求验证码
-- **THEN** 响应明确提供仅开发使用的 debugCode，可用于手动注册或登录；常规日志中没有验证码、原始手机号或 token
+#### Scenario: Production SMS remains disabled
+- **WHEN** prod 未接入真实短信，或被错误配置为 mock/debug
+- **THEN** disabled 请求返回 503/11502；错误 mock/debug 配置拒绝启动
 
-#### Scenario: Production cannot use debug SMS
-- **WHEN** prod 被配置为模拟发送或调试码回显
-- **THEN** 配置校验拒绝启动；prod 未配置真实发送适配器时，验证码接口返回 503 短信不可用，不返回验证码
+### Requirement: Access sessions shall have idle recovery within an immutable absolute lifetime
 
-### Requirement: Login sessions shall require a valid JWT and an active server-side session
+两类登录 MUST 返回 HS256 access JWT 和高熵 opaque refresh。access 标称 7200 秒且 exp 不得超过原 absolute；消费者 idle=7天、absolute=30天，员工 idle=1天、absolute=7天。activeExpiresAt MUST 为 min(最后合格活动+idle, original absolute)。idle 到期 MUST 只失去活跃访问记录，refresh/control 保留至 absolute；绝对期限 MUST NOT 随刷新滑动。每次凭证登录独立 sid；refresh 沿用 sid，access jti 可随签发变化。
 
-登录 MUST 同时具备 HS256 签名有效的 JWT 和匹配的 Redis 活跃会话；会话固定有效 7200 秒，不滑动续期，不提供 refresh token。JWT MUST 校验签名、算法、发行者、受众、过期与主体/商户/角色/会话匹配。每个受保护请求 MUST 验证当前账号及商户仍有效；多次登录允许独立并存，不能继承客户端角色。
+#### Scenario: Access is validated
+- **WHEN** 请求受保护接口
+- **THEN** 校验 HS256、issuer/audience、exp、sub/merchantId/role/sid、匹配活跃记录以及当前账号/商户 ACTIVE；任一无效 401，不能凭旧协议或未验签 role 建立身份
 
-#### Scenario: A session is created successfully
-- **WHEN** 凭证校验和 Redis 会话写入均成功
-- **THEN** 响应包含 accessToken、Bearer 类型、expiresIn、expiresAt 和脱敏后的主体；会话与 JWT 的绝对过期一致
+#### Scenario: Idle expires before the absolute limit
+- **WHEN** 用户闲置超过消费者 7 天或员工 1 天后回来，但 refresh 仍有效
+- **THEN** 原 access 因活跃记录缺失返回 401，按需 refresh 可恢复同 sid 活跃记录并轮换双 token，不要求短信/密码重登
 
-#### Scenario: Token validation fails
-- **WHEN** token 缺失、伪造、算法错误、issuer/audience 错误、过期、属于旧协议，或与服务端会话不匹配
-- **THEN** 受保护接口返回 401，不接受仅含可信格式声明但没有活跃会话的 token
+#### Scenario: Absolute limit expires
+- **WHEN** 距最初凭证登录超过消费者 30 天或员工 7 天
+- **THEN** access/refresh 均不能继续该会话，必须重新短信或密码验证，刷新不能延长 absolute
 
-#### Scenario: An existing principal is disabled
-- **WHEN** 登录之后账号或商户被受控停用，随后又请求受保护资源
-- **THEN** 后续请求返回 401，该登录态不再访问资源，不等 JWT 自然过期
+#### Scenario: Activity touches only the idle deadline
+- **WHEN** 成功完成允许续期的私有业务操作或前台所需刷新
+- **THEN** 可推进 idle 但不得超过 absolute；匿名浏览、失败、me 探测、后台轮询/定时保活不得续命，前端避免无条件刷新，不能将客户端活跃标记当作可信授权依据
 
-### Requirement: Current identity and logout shall operate on the current session
+### Requirement: Refresh rotation shall tolerate bounded retries and revoke actual replay
 
-系统 MUST 提供获取当前主体与退出当前会话的接口；身份信息来自可信上下文且手机号脱敏。退出成功 MUST 撤销当前 Redis 会话，其他设备会话保持有效。对签名有效且尚未过期、但已撤销的同一 token 再次退出 MUST 幂等成功；过期/无效/无 token 仍返回 401。退出成功之后开始的受保护请求 MUST 失败，已在执行的请求不承诺取消。
+统一 POST /api/v1/auth/refresh MUST 从 JSON refreshToken 验证当前 sid 与账号/商户状态，不依赖 access，不接受客户端租户/角色。系统 MUST 原子轮换摘要并保留历史摘要至 absolute，前端同店同类型跨 tab 协调。短时幂等 MUST 限同一旧摘要、refreshRequestId、10 秒窗口且下一代仍为当前；重试不得再次滑动期限。普通 Redis 记录 MUST 不含明文 refresh；短时同次响应缓存 MUST 使用域分离密钥的认证加密且有严格 TTL，不能退化为明文 token 缓存。
 
-#### Scenario: Logout revokes only the current device
-- **WHEN** 同一账号存在两个独立会话并用其中一个退出
-- **THEN** 退出返回 200，新请求使用该 token 返回 401，另一个会话仍有效
+#### Scenario: First rotation response is lost
+- **WHEN** 客户端在窗口内用同一旧 refresh 和同一 refreshRequestId 重试，且该轮换仍为当前
+- **THEN** 返回同一次双 token 结果，不产生第二次轮换或推进期限；返回前再次确认未撤销及绝对期限
 
-#### Scenario: Logout is retried
-- **WHEN** 使用相同的有效签名、尚未过期 token 重复调用退出
-- **THEN** 系统返回成功，不恢复会话或扩大撤销范围
+#### Scenario: A used refresh is actually replayed
+- **WHEN** 已知旧 refresh 在接受的重试条件外重用
+- **THEN** 原子撤销其 sid/family 的 active 与 refresh 能力并返回 401，其他设备/店铺不受影响；未知随机凭证只 401，不撤销任何可猜会话
+
+#### Scenario: Active data is missing but control metadata remains
+- **WHEN** refresh 当前有效且账号/商户 ACTIVE，active 因 idle 消失
+- **THEN** 可恢复 active；control/refresh 数据全丢失或 REVOKED 时必须 401，不能用 JWT 重建
+
+### Requirement: Logout shall atomically revoke the current session using available credentials
+
+统一 POST /api/v1/auth/logout MUST 支持有效未过期 access，或 access 缺失/过期时 JSON body.refreshToken 定位当前会话，凭证不得放 URL。可用 access 与已知 refresh 同时提交 MUST 指向同一 sid；若 access 无效或过期，可由有效 refresh 独立定位，不得让失效 access 阻断退出。退出 MUST 原子撤销 active 和整条 refresh 能力、清除重试结果并保留非明文墓碑/已知摘要至 original absolute。同会话已撤销重复退出 MUST 幂等 200；未知/伪造/全部绝对过期凭证 MUST 401，无法确认撤销 MUST 503。
+
+#### Scenario: Access expires before logout
+- **WHEN** access 已过期但 refresh 对应当前可验证会话
+- **THEN** 退出分支不被 access 过期拦截，使用 refresh 撤销且不签发新 token；有效历史 refresh 摘要可定位同一会话完成退出/重试
+
+#### Scenario: Logout is repeated or races with refresh
+- **WHEN** 同会话重复退出，或退出与刷新竞争
+- **THEN** 已撤销同会话幂等成功；撤销后刷新/重试不得重建 active 或返回缓存 token，前端清除对应凭证、广播退出且丢弃迟到刷新结果
+
+#### Scenario: Other sessions survive
+- **WHEN** 退出当前店铺、当前账号类型、当前 sid
+- **THEN** 其他店铺/类型/独立设备会话仍有效，已退出后发起的私有请求失败，已授权在途业务不承诺取消
+
+### Requirement: Browser integration shall preserve per-store credentials across tabs and restarts
+
+当前 dev/test 与短期生产集成约定 MUST 将 access+refresh 放 localStorage，按店铺和账号类型分区，切店不清其他键，同店跨 tab 协调轮换/退出并拒绝迟到响应覆盖。文档 MUST 明示 XSS 可窃取长期凭证且键分区不是安全隔离；生产目标另开 change 迁移 access 内存与 refresh HttpOnly Secure Cookie，并补 CSRF/CORS。本 change MUST NOT 宣称已实现前端或 Cookie 迁移。
+
+#### Scenario: Browser restarts inside the absolute lifetime
+- **WHEN** 用户关闭后隔天打开原店铺，凭证未撤销且未超过 absolute
+- **THEN** 可按需刷新恢复，无须因 access 或 idle 到期立即重登；A/B 多 tab 凭证互不覆盖，同店结果同步
 
 ### Requirement: Authorization shall enforce tenant role and resource ownership
 
-授权 MUST 先限定租户，再判断角色允许的操作，再校验私有资源归属。首期只接受 `MERCHANT_STAFF` 和 `CONSUMER`，不创建角色/权限/菜单表。资源访问 MUST 在查询和写入条件中包含服务端商户及必要的消费者归属，不能接受模型或请求提供的身份覆盖。跨租户和非本人资源 MUST 与不存在资源使用相同 404，合法身份的角色越权返回 403。
+系统 MUST 只接受 MERCHANT_STAFF/CONSUMER，按可信 Actor 先限定租户、再判断角色、再校验资源归属，所有 SQL 带服务端租户和必要本人条件。具体资源跨租户/非本人/不存在 MUST 同为 404，角色越权 403；通用同类资源路由可共用，不强制拆消费者/员工路径。未来 Tool MUST 注入服务端身份，不采纳模型的 merchantId/customerId；当前只实现账号资源，不提前实现订单/Tool。
 
-#### Scenario: Consumer reads own account resource
-- **WHEN** 消费者查询本人账号资料或用可信资源范围调用领域服务
-- **THEN** 仅在相同商户和相同消费者归属下返回允许字段，不能读取其他消费者或商户的记录
+#### Scenario: Account resources enforce scope
+- **WHEN** 员工查询同商户员工，或消费者查询自己账号
+- **THEN** 返回脱敏摘要；员工跨商户和消费者查他人均与不存在同为 404，角色不符 403，不先全局查详情泄露存在性
 
-#### Scenario: Staff accesses another staff account
-- **WHEN** 员工查询员工开通结果所属的员工资源
-- **THEN** 只返回本商户员工的脱敏摘要，另一个商户的 ID 和不存在 ID 均返回相同 404
+### Requirement: Authentication dependencies shall fail closed with stable privacy-safe contracts
 
-#### Scenario: A future tool supplies forged identity
-- **WHEN** 后续 Agent Tool 或 HTTP 调用传入与服务端上下文不一致的 merchantId/customerId
-- **THEN** 领域服务不采纳该身份，并按租户、角色与资源归属拒绝访问；认证模块不提前实现订单或 Tool
+新 API MUST 用 code/message/data/requestId、匹配 X-Request-Id、认证响应 no-store 与稳定 400/401/403/404/409/429/503。MySQL/Redis 不可用 MUST 503，不能仅验 JWT、放行匿名或用内存替代；双 token 会话未完整写入不得返回任一 token，撤销未确认不得假成功。日志 MUST 不含密码/hash/token/验证码/原始手机号/body。旧 /admin、/user MUST 保留旧头/响应，新旧 token 不互通。
 
-### Requirement: Authentication dependencies shall fail closed
+#### Scenario: Storage or filter fails
+- **WHEN** 过滤器认证、状态查询、登录写入、刷新或退出依赖失败
+- **THEN** 返回统一 JSON 与 requestId，不返回 HTML/堆栈或假成功；账号已提交仍保留，凭证不泄露
 
-Redis 或数据库不可用时，依赖它们的登录、注册、退出和受保护请求 MUST 返回 503 与稳定依赖不可用码，不降级为仅验 JWT、匿名放行或内存会话。登录会话写入失败 MUST 不返回 token；退出删除未确认成功 MUST 不报告退出成功。消费者账号已提交但会话写入失败不得回退成自动注册逻辑。
-
-#### Scenario: Redis fails during login or authorization
-- **WHEN** 登录写会话、受保护请求读会话或退出删会话发生 Redis 故障
-- **THEN** 请求返回 503，不产生假成功、不绕过校验；客户端可在恢复后重新登录或重试退出
-
-#### Scenario: Account storage is unavailable
-- **WHEN** 无法确认账号或商户当前状态
-- **THEN** 请求返回 503，不使用陈旧客户端声明继续授权
-
-### Requirement: Authentication APIs shall publish stable errors and privacy-safe evidence
-
-认证 API MUST 使用 `/api/v1`、`code/message/data/requestId`、Bearer 认证和稳定 HTTP/业务码，requestId 与响应头相同。系统 MUST 区分 400、401、403、404、409、429、503。认证审计 MUST 记录事件、结果、请求关联和可用的商户/主体，不记录密码、摘要、完整 token、验证码或原始手机号；新接口与旧登录协议保持隔离。
-
-#### Scenario: A security filter rejects a request
-- **WHEN** 请求在 Controller 之前发生 401/403 或依赖故障
-- **THEN** 响应仍使用统一 JSON envelope 和 requestId，不重定向登录页，不返回框架默认 HTML
-
-#### Scenario: Compatibility is exercised
-- **WHEN** 调用旧 `/admin`/`/user` 或把新旧 token 交叉使用
-- **THEN** 旧接口保留原请求头和响应契约，新旧 token 均不能跨协议授权，旧日志不泄露登录凭证
+#### Scenario: Legacy compatibility is exercised
+- **WHEN** 调用旧路由或交叉使用新旧 token
+- **THEN** 旧契约保持、跨协议拒绝，旧日志不泄露凭证；新 POST /api/v1/echo 匿名变 401，认证后输入校验仍适用
 
 ### Requirement: Runtime JWT keys shall be strong explicit and environment-isolated
 
-商户员工与消费者 MUST 使用各自独立随机生成的 HS256 对称密钥，配置值为 Base64，解码后不少于 32 字节；缺失、占位、非法编码、过短或两者相同 MUST 拒绝启动。dev 实际密钥 MUST 只写入忽略的 dev YAML，示例只留占位；test 使用独立测试值，prod 通过环境变量注入。文档 MUST 说明改 dev JWT YAML 只需重启 API，以及 Compose 环境变更的生效方式。
+员工/消费者 MUST 各用独立随机 Base64 HS256 key，解码至少 32 字节，缺失/占位/非法/过短/相同拒绝启动。dev 实际 key MUST 只在忽略 YAML，test 独立值，prod 环境注入。文档 MUST 说明两次 openssl rand -base64 32、正确属性、只改 dev JWT 时重启 API 即可，以及已有 gba-dev 的 up -d 和 Compose 环境变化重建方式，不要求删除卷。
 
-#### Scenario: Developer configures JWT signing
-- **WHEN** 执行两次 `openssl rand -base64 32` 并将不同结果放入 dev 的两处 JWT 配置
-- **THEN** IDEA 只激活 dev 即可启动，无需将密钥写入根 .env 或重建 MySQL/Redis；签名显式为 HS256
+#### Scenario: Keys are configured or rejected
+- **WHEN** 配置合规不同 key，或输入弱/占位/无效 key
+- **THEN** 前者按明确 HS256 启动且无需根 dev .env/Compose 加 JWT；后者启动失败且错误不含 key，不自动散列补长；legacy Base64 语义变化需重新登录
 
-#### Scenario: Configuration cannot silently weaken keys
-- **WHEN** 配置缺失、占位、非法 Base64、解码不足 32 字节或员工与消费者密钥相同
-- **THEN** 应用在启动阶段报出不含密钥值的配置错误，不通过散列短口令或默认 itcast/itheima 自动补足
+### Requirement: Development and test accounts shall remain separate from production seeds
 
-### Requirement: Development data shall support manual authentication without entering production
+dev MUST 用 db/devdata 提供两个既有 nonprod 租户首员工、样板双消费者与对照同手机号消费者，员工只存 BCrypt，幂等不覆盖凭证/状态。test MUST 用独立 src/test/resources/db/fixture 的 @Sql 数据覆盖同租户唯一、跨租户隔离与资源归属，不依赖 devdata/演示密码；租户根仍 db/seed/nonprod，认证业务账号不放 common/nonprod。prod 不加载演示/fixture，生产开通延期。
 
-dev MUST 通过 `db/devdata` 提供样板和对照商户的可登录首员工、至少两名同商户消费者，以及跨商户同手机号/同用户名数据，供手动联调；repeatable 种子不得覆盖已有账号凭证或状态。自动化测试 MUST 通过 `@Sql` 从 `src/test/resources/db/fixture` 显式加载独立员工和消费者，并验证租户内唯一性、跨租户隔离及资源归属，不得依赖 devdata。两个租户根继续位于 `db/seed/nonprod`；认证业务账号不得进入 common/nonprod。生产不加载 devdata 或 test fixture；生产租户及首员工开通设计延期到后续 change。
-
-#### Scenario: A developer starts from a fresh database
-- **WHEN** dev 从空库执行结构迁移和适用开发数据
-- **THEN** 可依据文档用员工密码和消费者模拟短信分别登录，也可手动完成新消费者注册与员工开通
-
-#### Scenario: Tests and production keep seed boundaries
-- **WHEN** test 或 prod 初始化
-- **THEN** test 只由测试显式 fixture 加载员工和消费者，prod 不获得演示员工和消费者、也不要求当前提供生产首员工；已发布 V1/V2/V3 校验和保持不变
+#### Scenario: Seed and fixture boundaries are verified
+- **WHEN** dev 重复初始化或 test/prod 启动
+- **THEN** dev 不覆盖已有账号；test 仅显式加载 fixture，prod 无演示账号；V1/V2/V3 不变，仅计划 V4 追加表结构

@@ -23,73 +23,75 @@
 
 - 以业务闭环为顺序：确认账号怎样建立与使用，再冻结 API，再落表和索引，再实现会话/授权及验证，不把“装 Redis”当成模块完成。
 - 后续领域只依赖可信身份及授权范围，不依赖 JWT 字符串、Redis key 或 legacy Mapper。
-- 将手动注册/登录、开发账号、JWT 本地配置和日常 Docker 操作整理成可以照着执行的步骤。
+- 将首次短信登录建号、员工开通、开发账号、JWT 本地配置和日常 Docker 操作整理成可以照着执行的步骤。
 
 **Non-Goals:**
 
-- 平台管理员登录、商户自助入驻/审批、生产租户和首管理员开通流程、生产认证账号种子、匿名员工注册、邀请码体系、角色/权限/菜单表、完整员工管理后台、找回/重置密码、refresh token、OAuth/SSO、真实短信与前端。
+- 平台管理员登录、商户自助入驻/审批、生产租户和首管理员开通流程、生产认证账号种子、匿名员工注册、邀请码体系、角色/权限/菜单表、完整员工管理后台、找回/重置密码、OAuth/SSO、真实短信与前端。
 - 商品/订单/物流表、Agent 实现、RabbitMQ/Milvus 预安装、CI 或真实生产发布。后续路线只作为本文与实现阶段维护文档的内容。
 
 ## Decisions
 
-### 1. 账号建立采用消费者自助注册与商户内部子账号开通
+### 1. 消费者首次短信登录自动建号，员工由商户内部开通
 
-常见电商商家工作台将商户入驻/主账号建立，与员工子账号开通区分；消费者也不应通过公开接口成为任意商户员工。本项目采用这个业务模式，不声称复刻淘宝千牛、深信服、字节、阿里、京东或美团的内部架构，也不把项目选择包装成已核验的行业占比。
+本方案采用店铺内消费者身份和受控员工子账号，不把它称为已核验的淘宝、有赞、微盟或某类公司内部实现。消费者不需要先注册或手输商户编码。
 
 | 主体 | 首期账号建立 | 登录方式 | 租户来源 |
 | --- | --- | --- | --- |
-| 消费者 | 店铺内手机号 + REGISTER 验证码；注册与登录分开 | 同商户手机号 + LOGIN 验证码 | 登录前按 merchantCode 解析；登录后只信服务端上下文 |
-| 商户员工 | dev 用 devdata 提供样板商户首员工；test 用独立 @Sql fixture；后续由本商户已登录员工手动创建 | merchantCode + identifier（用户名/手机号）+ password | 创建取操作者上下文；登录按商户编码与账号记录确认 |
+| 消费者 | 该店首次有效短信验证时自动创建；已存在则复用 | 手机号 + LOGIN 验证码，一个流程 | 店铺首页自动携带公开 storeSlug；服务端解析为 ACTIVE merchantId |
+| 商户员工 | devdata 提供演示首员工；test 独立 @Sql fixture；其他员工由本商户已登录员工开通 | merchantCode + identifier（用户名/手机号）+ BCrypt 密码 | 登录校验账号所属商户；创建取可信 Actor |
 | 平台管理员 | 后续 change | 本期没有 | 不使用 merchant_id=0 伪装 |
 
-用户的“手动注册登录”落实为消费者主动注册、商户内部手动开通员工、两类账号各自登录，不开放陌生人匿名加入商户。首期管理员与客服合并为 `MERCHANT_STAFF`，所以每个员工都具有本商户员工开通权限；这是一项明确的产品简化。未来若要求仅管理员开通，另开 change 拆分固定角色或权限，不能暗加 isAdmin 来假装没有分权。
+首期仅 MERCHANT_STAFF、CONSUMER；管理员与客服合并，所以所有员工暂时共享本商户员工开通权，不引入 isAdmin 或 RBAC。员工创建成功不替同事登录；员工手机号是内部维护标识，本期不声称完成其短信持有权验证。初始密码由模块外安全渠道交付。生产商户、首员工/管理员建立与生产种子延期，不提供命令或 HTTP bootstrap。
 
-员工创建者负责核对录入手机号；员工手机号本期是内部维护的登录标识，不声称已完成短信持有权验证。初始密码通过安全渠道交付，本 change 不建设通知或找回密码。devdata 为每个非生产商户提供一个演示首员工，自动化测试按用例加载独立员工 fixture；两者都使用 BCrypt 摘要，dev 演示密码不用于 test。首员工可被业务称为“管理员”，但首期角色仍是 `MERCHANT_STAFF`，权限与其他员工相同。生产商户入驻、生产首员工/管理员开通与是否使用生产种子均延期到商户管理方案，不在本 change 提供命令或 HTTP bootstrap。
+消费者同手机号在不同商户是不同账号、数据与会话。有效验证码消费后，以 (merchant_id, normalized_phone) 唯一约束处理首次建号并发；独立有效挑战发生唯一冲突时复用赢家账号，重新核验状态，不返回重复注册 409；同一个挑战重放仍失败。已有 DISABLED 账号不能重建绕过停用。
 
-消费者身份首期是租户内账号，不做全平台统一用户与多商户会员关系。同手机号在两个商户有不同账号与会话。消费者在商户 A 登录后不能靠传商户 B 的编码切换授权范围，必须单独登录 B。
+账号数据库事务先提交，再建立 Redis 双 token 会话。建号成功不等于登录成功：Redis 写入失败返回 503 且不返回任一 token，已提交账号保留，验证码不恢复，下次重新取码登录。没有独立注册接口、REGISTER 用途、首次建号提示、协议链接或同意勾选门槛。
 
-未采用的方案：首次短信登录自动注册不符合用户要求；公开商户编码加匿名注册会导致任意加入；邀请码和审批会引入本期不需要的新业务系统；命令式生产初始化超出当前没有商户入驻/平台后台的范围，因此生产首员工流程延期。
+店铺主页为 /store/{storeSlug}；初期 storeSlug 复用 merchantCode 的公开别名，不新增 slug 表字段，服务端按现有编码规则解析。它只定位商户，不证明访问权限；未来公开 slug 改名另作映射/迁移，内部 merchantId 不变。没有店铺上下文则先进入店铺，不接受无上下文的消费者手机号登录。
 
-### 2. 先冻结 API，再由 Springdoc 从实现导出最终契约
+A 店已登录时访问 B 店公开主页仍是 B 店匿名浏览；私有功能只选取 B 店本账号类型的凭证，没有就发起 B 店短信登录。前端不清 A 店凭证，回 A 可继续使用/刷新其会话。通用私有接口无法知道浏览器当前在 B 店：若误发 A token，只会按 A 身份处理；前端必须按路由店铺选择凭证并核对响应 principal，不能指望后端猜测页面店铺。
 
-实现阶段先写 `api/docs/auth/requirements.md` 与 `api/docs/auth/api-design.md`，以本 change 的行为与下表为审阅基础；不是先手写一套会和代码漂移的最终 OpenAPI。Controller、DTO、校验与 Springdoc 注解是契约来源，完成后导出 `docs/api/auth-v1.openapi.yaml`，更新兼容记录并交付 Apifox 可执行场景。
+### 2. 先冻结 API，再从实现导出 Springdoc 契约
+
+任务组 1 交付 requirements.md、api-design.md 与旧接口迁移记录；下表为目标设计，不代表已经上线。实现的 Controller、DTO、校验和注解完成后再导出 docs/api/auth-v1.openapi.yaml。
 
 | 方法与路径 | 请求 | 成功结果 | 访问条件 |
 | --- | --- | --- | --- |
-| POST `/api/v1/auth/sms-codes` | merchantCode, phone, purpose=REGISTER/LOGIN | 200：expiresIn=300, retryAfter=60；只有 dev 显式开启时附加 debugCode | 匿名，受发送限流 |
-| POST `/api/v1/auth/consumer/register` | merchantCode, phone, code | 201：accountId, role=CONSUMER, merchantCode, phoneMasked；无 token | 匿名，REGISTER 挑战 |
-| POST `/api/v1/auth/consumer/login` | merchantCode, phone, code | 200：登录结果 | 匿名，LOGIN 挑战且账号已注册 |
-| POST `/api/v1/auth/staff/login` | merchantCode, identifier, password | 200：登录结果 | 匿名，商户内凭证校验 |
-| POST `/api/v1/staff-accounts` | username, phone, displayName, password | 201：员工摘要，Location 指向其资源 | MERCHANT_STAFF，只能开通本商户员工 |
-| GET `/api/v1/staff-accounts/{accountId}` | 字符串 ID | 200：脱敏员工摘要，不含密码/hash | MERCHANT_STAFF，同商户 |
-| GET `/api/v1/consumer-accounts/{accountId}` | 字符串 ID | 200：脱敏本人摘要 | CONSUMER，同商户且本人 |
-| GET `/api/v1/auth/me` | 无 | 200：当前可信身份、商户和 phoneMasked | 有效会话 |
-| POST `/api/v1/auth/logout` | 无 body | 200：data=null | 已验签的未过期新协议 token；支持重复退出 |
+| POST /api/v1/stores/{storeSlug}/auth/sms-codes | phone | 200：expiresIn=300, retryAfter=60；dev 显式开启才有 debugCode | 匿名，LOGIN 挑战与限流 |
+| POST /api/v1/stores/{storeSlug}/auth/consumer/login | phone, code | 200：首次建号或已有账号双 token 登录 | 匿名，有效 LOGIN 挑战 |
+| POST /api/v1/auth/staff/login | merchantCode, identifier, password | 200：双 token 登录 | 匿名，商户内密码 |
+| POST /api/v1/auth/refresh | refreshToken, refreshRequestId | 200：轮换后的双 token | 独立 refresh 凭证，不要求有效 access |
+| POST /api/v1/staff-accounts | username, phone, displayName, password | 201：员工摘要，Location 指向其资源；无 token | MERCHANT_STAFF，本商户 |
+| GET /api/v1/staff-accounts/{accountId} | 字符串 ID | 200：脱敏员工摘要 | MERCHANT_STAFF，同商户 |
+| GET /api/v1/consumer-accounts/{accountId} | 字符串 ID | 200：脱敏本人摘要 | CONSUMER，同商户且本人 |
+| GET /api/v1/auth/me | 无 | 200：可信 principal | 有效 access 与活跃记录 |
+| POST /api/v1/auth/logout | 可选 JSON refreshToken；或有效 access | 200：data=null | 验证凭证后撤销当前 sid，支持重复退出 |
 
-两个账号资源 GET 是实际账号资料与创建结果定位，不新增测试专用生产接口；它们用真实资源证明租户、角色、归属三层边界，不预建订单表。
+详情资源是实际账号资料，不额外造订单作为测试接口。所有 JSON 使用 {code,message,data,requestId}，错误 data=null；X-Request-Id 与 body 一致；认证响应 Cache-Control: no-store；ID 为字符串，时间 UTC ISO-8601。
 
-所有普通结果包在现有 `{code,message,data,requestId}` 内。登录结果 data 为 `{accessToken,tokenType:"Bearer",expiresIn:7200,expiresAt,principal:{accountId,merchantId,merchantCode,role,displayName,phoneMasked}}`；ID 始终为字符串，时间采用 UTC ISO-8601。认证响应设 `Cache-Control: no-store`。错误 data=null，头部 `X-Request-Id` 与响应一致。
+登录/刷新 data 为 {accessToken,refreshToken,tokenType:Bearer,expiresIn,expiresAt,refreshExpiresAt,principal}。expiresIn 通常 7200，临近 absolute 时截短；expiresAt 是 access exp，refreshExpiresAt 是原始 absolute，刷新不推后。principal 含 accountId、merchantId、merchantCode、role、displayName、phoneMasked。消费者首次建号仍 200，不返回注册 201/Location。仅员工开通返回 201/Location 且无 token。
 
-输入规则：手机号首期支持中国大陆，去首尾空白并将 11 位号码规范化为 `+86` E.164；可接受相同号码的 `+86` 表示，不将掩码当凭证。用户名 trim 后小写，正则 `[a-z][a-z0-9_-]{2,31}`，不能与手机号格式混淆。merchantCode trim 后按既有大写业务编码规范解析。密码不 trim，8～64 字符且 UTF-8 最多 72 字节，超过直接 400，避免 BCrypt 截断。新认证 DTO 严格拒绝未声明字段，尤其 role、merchantId、accountId、customerId；不全局改变 legacy DTO 的未知字段行为。
-
-业务码增量登记如下；扩展公共错误接口，使新 auth 枚举可被 ApiResponse 使用，保留旧枚举数值与调用兼容。
+输入：大陆 11 位手机号或等价 +86 输入 trim 后统一 E.164；用户名 trim/小写，正则 [a-z][a-z0-9_-]{2,31}；merchantCode 按现有大写业务编码规范。密码不 trim，8～64 字符且 UTF-8 最多 72 字节。新 DTO 拒绝未知字段，客户端不得注入 role、merchantId、accountId、customerId。消费者请求体不再接受 merchantCode/purpose；refresh 不接受店铺/角色/内部 ID，refreshRequestId 为一次轮换尝试的随机 UUID，网络重试复用，与每个 HTTP 的 X-Request-Id 不同。
 
 | HTTP | code / 名称 | 对外语义 |
 | --- | --- | --- |
-| 200/201 | 0 | 成功 |
-| 400 | 10001 INVALID_ARGUMENT | 格式、未知字段或校验失败 |
-| 401 | 10002 UNAUTHORIZED | token 缺失/无效、会话不存在、主体不再有效 |
-| 403 | 10003 FORBIDDEN | 有效主体的角色不允许该操作 |
-| 404 | 10004 RESOURCE_NOT_FOUND | 不存在、跨商户或非本人资源统一结果 |
-| 409 | 10009 CONFLICT | 已通过验证的重复注册，或本商户员工用户名/手机号冲突 |
-| 401 | 11001 AUTH_CREDENTIALS_INVALID | 账号不存在、密码错误、未注册消费者、商户/账号停用等统一登录失败 |
-| 400 | 11002 AUTH_SMS_CODE_INVALID | 错误、过期、已使用、用途/范围不符的统一验证码失败 |
-| 429 | 11003 AUTH_RATE_LIMITED | 超限，带 Retry-After 秒数 |
-| 503 | 11501 AUTH_DEPENDENCY_UNAVAILABLE | 无法确认账号/租户/会话或完成 Redis 操作 |
-| 503 | 11502 AUTH_SMS_UNAVAILABLE | 短信发送能力关闭或发送失败 |
+| 200/201 | 0 SUCCESS | 成功 |
+| 400 | 10001 INVALID_ARGUMENT | 格式、未知字段、身份注入、双凭证会话不一致 |
+| 401 | 10002 UNAUTHORIZED | access 无效/活跃记录缺失；refresh 无效/撤销/绝对过期 |
+| 403 | 10003 FORBIDDEN | 有效主体角色越权或显式保护店铺路径与 token 租户不符 |
+| 404 | 10004 RESOURCE_NOT_FOUND | 具体资源不存在、跨租户、非本人统一结果 |
+| 409 | 10009 CONFLICT | 员工用户名/手机号冲突，不用于消费者自动建号竞争 |
+| 401 | 11001 AUTH_CREDENTIALS_INVALID | 登录凭证错误、账号/商户不存在或停用统一消息 |
+| 400 | 11002 AUTH_SMS_CODE_INVALID | 验证码错误、过期、已用或范围不符 |
+| 429 | 11003 AUTH_RATE_LIMITED | 超限，Retry-After 秒数 |
+| 503 | 11501 AUTH_DEPENDENCY_UNAVAILABLE | MySQL/Redis 不能完成操作或确认状态 |
+| 503 | 11502 AUTH_SMS_UNAVAILABLE | 短信关闭或发送失败 |
 | 500 | 10500 INTERNAL_ERROR | 非预期内部错误，不泄露堆栈 |
 
-登录接口对未知商户/账号和停用状态保持相同 11001；短信发送不因账号是否注册改变正常成功响应。消费者注册重复只在验证码验证后告知冲突，避免未验证手机号直接枚举；发送只解析有效商户，不提前查询手机号注册状态。安全认证/角色校验先于 DTO 校验，因此匿名员工创建为 401，消费者创建为 403，员工携带伪造身份字段为 400。
+商户无效的匿名短信/登录保持统一凭证失败，不枚举手机号是否已有账号。安全身份/角色校验先于 DTO：匿名员工开通 401、消费者开通 403、员工提交身份注入 400。详细请求/响应与失败例以 api-design.md 为准。
+
+公开资源示例 GET /api/v1/stores/{storeSlug}/products 按 URL 定位且忽略身份；私有资源示例 GET /api/v1/orders、/orders/{orderId} 按 Actor.tenant 与消费者本人/员工能力限定，同一个业务资源不必强制拆 /staff 前缀。当前不实现这些示例。未来确有多店操作才设计显式店铺私有路径并校验授权，不能简单用 URL 覆盖 token；具体资源查询仍统一 404。
 
 ### 3. V4 仅追加两张租户认证表
 
@@ -106,49 +108,66 @@
 
 索引解释：消费者登录命中 (merchant_id,phone)；员工 identifier 先判别手机号/用户名再走对应等值唯一索引，不用 OR 扫描。资源详情按 (merchant_id,id) 查询，消费者还限定 id=上下文 accountId。所有更新/删除 SQL 带 merchant_id 与资源 ID。created_by 组合引用需要 (merchant_id,created_by) 索引，防止跨租户创建关系。当前没有列表功能，不凭空添加 status、created_at、last_login_at 索引；已有 merchant_code 唯一索引用于登录租户解析。
 
-注册靠唯一约束处理竞争，捕获唯一冲突转 409；不是只做“先查再插”。新账号写入与创建者归属校验在数据库事务内完成。消费者注册验证码被消费后数据库失败不会恢复验证码，返回 503 并要求重新取码，优先保证一次性；注册本来就不签 token，数据库提交后没有跨存储注册+登录事务。
+员工开通唯一冲突转 409；消费者自动建号唯一冲突改为读取同租户已有账号并核验状态，不只依赖先查再插。账号写入与创建者归属校验在数据库事务内完成。验证码消费后数据库失败返回 503 且不恢复挑战；数据库账号提交与 Redis 会话分开，不引入跨 MySQL/Redis 回滚。
 
 ### 4. 模拟短信保留标准发送边界和一次性校验
 
-`auth` 内的发送接口仅表达接收方、用途和内容；dev 适配器模拟成功，test 注入可控适配器。dev 的 `merchant.auth.sms.provider=mock`，且显式开启 `merchant.auth.sms.expose-debug-code=true` 时才在发送结果附加 debugCode；默认和 prod 都不回显。prod 设置 provider=disabled，验证码接口返回 503；若 prod 误选 mock 或回显则启动失败。员工密码登录与已存在账号不依赖 SMS 发送。未来接阿里云只替换发送适配器、配置和真实发送验收，不改注册/登录用例。
+`auth` 内的发送接口仅表达接收方、用途和内容；dev 适配器模拟成功，test 注入可控适配器。dev 的 `merchant.auth.sms.provider=mock`，且显式开启 `merchant.auth.sms.expose-debug-code=true` 时才在发送结果附加 debugCode；默认和 prod 都不回显。prod 设置 provider=disabled，验证码接口返回 503；若 prod 误选 mock 或回显则启动失败。员工密码登录与有效 refresh 的刷新不依赖 SMS 发送；消费者无论是否已有账号，凭证登录均需短信验证。未来接阿里云只替换发送适配器、配置和真实发送验收，不改消费者登录用例。
 
 六位码用安全随机数生成，不用固定 123456。Redis 挑战保存加随机盐的摘要、salt、错误次数、challengeId、绝对过期和 ready 状态，不存明文验证码；手机号 key 维度用规范化手机号摘要，摘要仍视为敏感标识，不视为匿名化。验证码仅在 dev 显式调试响应短暂显示，不记录请求/响应 body。发送失败返回 11502，并按 challengeId 定向删除本次挑战，不报告已发送；失败仍消耗限流额度。模拟模式的 debugCode 不进入审计/普通应用日志。
 
 通过 Lua 原子完成“校验挑战状态/摘要、增加失败次数、成功删除”；错误第五次删除，成功一次只允许一个调用通过。发送采用原子冷却与配额预占，同一范围重发替换挑战，只有发送成功并激活后才可验证；发送与消费按 challengeId 避免误删新挑战。
 
-默认限流：同商户+手机号+用途 60 秒发送冷却；同商户+手机号（跨用途合并）每小时 10 次；来源 IP 每小时 30 次发送。员工密码连续失败按商户+实际账号 5 次/15 分钟锁定，用户名/手机号共享同一账号计数；未知账号按标识摘要计数并执行 dummy BCrypt 校验，避免跳过成本暴露存在性；来源 IP 额外限制 30 次/15 分钟。成功密码登录清除该账号失败计数，不清 IP 总量；密码接口同样受 IP 请求配额约束。消费者验证码登录同时受挑战次数和 IP 请求配额约束。IP 首期取直接连接 remoteAddr，不信任任意 X-Forwarded-For；未来代理部署单独配置可信代理。上述参数可以配置，429 的 Retry-After 为剩余窗口，所有计数与首次 TTL 原子设置。
+默认限流：同商户+手机号 LOGIN 范围 60 秒发送冷却；同商户+手机号每小时 10 次；来源 IP 每小时 30 次发送。员工密码连续失败按商户+实际账号 5 次/15 分钟锁定，用户名/手机号共享同一账号计数；未知账号按标识摘要计数并执行 dummy BCrypt 校验，避免跳过成本暴露存在性；来源 IP 额外限制 30 次/15 分钟。成功密码登录清除该账号失败计数，不清 IP 总量；密码接口同样受 IP 请求配额约束。消费者验证码登录同时受挑战次数和 IP 请求配额约束；refresh 来源 IP 默认另按 30 次/15 分钟限额，合法重试也受配额约束。IP 首期取直接连接 remoteAddr，不信任任意 X-Forwarded-For；未来代理部署单独配置可信代理。上述参数可以配置，429 的 Retry-After 为剩余窗口，所有计数与首次 TTL 原子设置。
 
-### 5. JWT 明确签名规范，Redis 保存可撤销会话
+### 5. 双 token、滑动活跃记录与固定绝对期限
 
-HS256 是 HMAC-SHA256 对称签名，不是 HSA256，也不是加密。token 中不放手机号、密码、验证码。两把 key 分别用于 MERCHANT_STAFF、CONSUMER，不是数据库 root/user，也没有本期平台 root key。
+HS256 是 HMAC-SHA256 对称签名。员工/消费者各自 Base64 key，不是数据库 root/user；JWT 不放手机号、密码或验证码。access 校验固定算法、issuer=merchantbao、audience=api-v1 以及 sub、merchantId、role、sid、jti、iat、exp，未验签 role 仅用于固定候选 key 选择，不能建立身份。sid 每次凭证登录随机独立；jti 标识本次签发，不再等于 sid。刷新沿用同一 sid，不延长原始 absolute。
 
-JWT 使用 issuer=`merchantbao`、audience=`api-v1`，claims 包含 sub（账号 ID 字符串）、merchantId、role、sid、iat、exp，jti=sid；sid 使用安全随机 UUID。签名和验证均限制 HS256，不能根据客户端 alg 自由选算法。验证服务仅把未验证 role 当作在固定两把 key 中选择候选的提示，随后必须校验签名、完整 claims 与会话匹配，绝不能提前建立角色上下文。异常统一 401。
-
-会话 TTL 与 exp 同一时钟绝对过期点，默认 7200 秒，Redis PX/EXPIREAT 对齐，不滚动续期。每次登录产生新 sid，可独立多端登录，不做每账号唯一登录、踢人后台或会话索引。会话 value 包含 schemaVersion、accountId、merchantId、role、issuedAt、expiresAt，不保存完整 JWT。JWT 签好且 Redis SET 成功才向客户端返回；任一步失败无可用 token 返回。响应丢失可能留下孤立会话，靠 TTL 清理。
-
-| Redis key（`env` 来自明确 profile 命名空间） | 类型/TTL | 用途 |
+| 规则 | 消费者 | 商户员工 |
 | --- | --- | --- |
-| `mba:{env}:auth:session:{merchantId}:{role}:{sid}` | string JSON，至 JWT exp | 活跃会话允许列表 |
-| `mba:{env}:auth:sms:{merchantId}:{purpose}:{phoneHash}` | hash，300s | 挑战、摘要、失败次数与 generation |
-| `mba:{env}:auth:sms-cooldown:{merchantId}:{purpose}:{phoneHash}` | string，60s | 发送预占 |
-| `mba:{env}:auth:sms-quota:{merchantId}:{phoneHash}:{window}` | counter，窗口剩余时间 | 跨用途合并的手机号配额 |
-| `mba:{env}:auth:sms-ip:{ipHash}:{window}` | counter，窗口剩余时间 | 短信来源配额 |
-| `mba:{env}:auth:password-fail:{merchantId}:{accountOrIdentifierHash}` | counter，900s | 员工密码失败锁定 |
-| `mba:{env}:auth:login-ip:{ipHash}:{window}` | counter，窗口剩余时间 | 登录请求配额 |
+| access 标称寿命 | 7200 秒（2 小时） | 7200 秒（2 小时） |
+| 活跃 idle | 7 天 | 1 天 |
+| absolute / refresh 最长寿命 | 首次凭证登录起 30 天 | 首次凭证登录起 7 天 |
+| idle 到期 | access 活跃记录失效；有效 refresh 可无感恢复 | 同左 |
+| absolute 到期 | 必须重新短信验证 | 必须重新密码登录 |
 
-新域使用 StringRedisTemplate 与显式 JSON/Hash，不修改 legacy RedisTemplate 的 JDK value 序列化。当前是单实例 Redis，Lua 原子性依据该部署；Redis Cluster 多键 hash slot 适配留给未来基础设施 change。与商品缓存、未来 ChatMemory 分开命名空间，不使用全库 flush 清理会话。
+access exp=min(签发时刻+7200秒, absoluteAt)；activeExpiresAt=min(lastQualifyingActivity+idle, absoluteAt)。正常业务认证成功并成功完成允许的私有业务操作后才 touch；失败/匿名请求、me 身份探测、后台轮询与保活端点不 touch。touch 必须原子检查 control 未撤销、active 仍存在且身份匹配后才更新期限，不能由退出前在途请求在退出后重新 SET 活跃记录。前端仅为前台实际私有操作按需 refresh；不得后台定时刷新续命。后端无法可靠判断真人操作，不把客户端 active=true 当授权证据，也不承诺识别所有恶意伪装的业务请求。refresh 合法处理本身可 touch，但短时幂等重试不能重复推进 idle。
 
-每个受保护请求：校验 token → 读匹配会话 → 从数据库查询当前 merchant 与对应账号是否 ACTIVE → 形成不可变身份。MySQL 是账号/商户事实来源，Redis 是短期登录态权威；Redis 丢失导致重新登录，不能从 JWT 自动重建。首期不缓存账号状态，所以受控停用后的后续请求立即失败，代价是每次保护请求有索引查询。后台状态管理 API 另开 change，当前通过测试 fixture 验证失效行为。
+不透明 refresh 初始使用安全随机 256 位值，不含可由客户端采纳的租户 claims；服务端用其 SHA-256 摘要查 Redis 元数据取得 sid/merchantId/role。active 仅是短期允许列表，control 和 refresh 记录保留至 original absolute，明确区分 idle 清理和撤销。每次刷新重新确认账号/商户 ACTIVE；idle 丢失可重建 active，control/refresh 全部丢失或撤销则 401，绝不能单凭 JWT 重建。Redis/MySQL 出错为 503。
 
-退出仅撤销当前 sid。过滤器对 logout 特殊处理：仍严格验签/claims/过期，不要求会话存在或账号 ACTIVE；读取存在会话时仍核对匹配，按准确 key 删除并确认结果；已不存在返回成功。Redis 故障返回 503，不谎报成功。已过期 token 为 401；其他路由始终需要活跃会话及有效账号。退出完成后开始的请求不能再通过；已经建立上下文的在途请求不承诺取消。
+| Redis key（env 为 profile 命名空间） | 类型/TTL | 用途 |
+| --- | --- | --- |
+| mba:{env}:auth:session:{sid} | JSON，至 activeExpiresAt | schemaVersion、accountId、merchantId、role、absoluteAt、activeExpiresAt，与 access identity 匹配 |
+| mba:{env}:auth:control:{sid} | hash，至 absoluteAt | 可信身份、原始登录时刻、absoluteAt、当前 generation/hash、ACTIVE/REVOKED 状态；不随 idle 删除 |
+| mba:{env}:auth:refresh:{tokenHash} | hash，至 absoluteAt | sid、generation、CURRENT/USED 状态；保留历史摘要以识别重放与同会话退出，不保留原值 |
+| mba:{env}:auth:refresh-retry:{sid}:{refreshRequestId} | JSON，默认 10 秒且不晚于 absoluteAt | 请求旧摘要、下一 generation、加密的同次响应，用于短时返回同一结果 |
+| mba:{env}:auth:sms:{merchantId}:LOGIN:{phoneHash} | hash，300 秒 | 摘要、salt、challengeId、失败次数与 ready |
+| mba:{env}:auth:sms-cooldown:{merchantId}:LOGIN:{phoneHash} | string，60 秒 | 发送预占 |
+| mba:{env}:auth:sms-quota:{merchantId}:{phoneHash}:{window} | counter，窗口剩余时间 | 手机号配额 |
+| mba:{env}:auth:sms-ip:{ipHash}:{window} | counter，窗口剩余时间 | 短信来源配额 |
+| mba:{env}:auth:password-fail:{merchantId}:{accountOrIdentifierHash} | counter，900 秒 | 密码失败锁定 |
+| mba:{env}:auth:login-ip:{ipHash}:{window} | counter，窗口剩余时间 | 登录/刷新请求配额 |
 
-选择允许列表的原因是登录、当前身份、退出和 Redis 丢失的规则集中，便于讲清和验收；纯无状态 JWT 无法立即退出，黑名单需要另定义未列入 token 与存储故障行为。本期不并行实现黑名单。
+新域使用 StringRedisTemplate 与显式 JSON/Hash，保留 legacy 序列化。单实例 Redis Lua 为当前原子边界，多键跨槽适配留给未来 Cluster change。会话初始化原子写 control、active 和首 refresh 索引，成功后才返回双 token；失败不返回任一凭证。响应丢失的孤立会话由绝对 TTL 清理。
+
+轮换采用“前端同店铺同角色跨 tab 协调 + refreshRequestId + 10 秒幂等窗口”。Redis 原子比较当前 generation/hash，消费旧 refresh 并登记新值、重试元数据和 active。旧值仅在同一 refreshRequestId、同一旧摘要、窗口内且该轮换仍是当前代时返回同一结果；不延长 absolute/idle。其他已知历史值的重用撤销当前 sid/family（不撤销其他设备），未知随机值只 401 不撤销任何可猜会话。不同 tab 必须共享在途 requestId 和结果，避免把正常并发误当重放。
+
+为兼顾摘要存储与网络重试，refresh 本体始终用安全随机 256 位值；仅短时重试缓存保存 AES-256-GCM 加密后的完整同次响应，随机 nonce，sid/generation/requestId/absoluteAt 作为 AAD。缓存密钥由各角色签名 key 经 HKDF-SHA256、auth-refresh-retry-v1 域分离派生，不直接复用 JWT 原 key；解密只在服务端校验同一旧摘要、requestId、当前 generation 和未撤销控制记录后进行。缓存默认 10 秒且不超过 absolute，过期/退出清除，不存明文 token；解密失败拒绝并返回 503。实现验证加密完整性、域分离、并发和 TTL；密钥轮换使相关会话重新登录。候选随机值与加密响应在应用内生成，Lua 原子比较状态并提交，不在脚本中使用非安全随机数。
+
+退出 POST /api/v1/auth/logout 可用未过期且验签完整的 access 定位 sid，active 已消失/账号已停用不妨碍撤销；access 缺失、无效或过期时用 body.refreshToken 的已知摘要定位。refresh 分支也接受该会话已轮换/已撤销的已知历史摘要用于撤销/重试，但绝不刷新或发新 token。可用 access 与已知 refresh 同时提交须属于同一 sid，否则 400；若 access 不能验证/已过期，可由有效的已知 refresh 独立定位并撤销，不因无效 access 阻断退出。refresh 仍不得签发新 token。
+
+Lua 原子置 control=REVOKED、删除 active、使当前及历史 refresh 全部失去刷新能力并清除重试结果；以 control 墓碑与已知摘要保留至原 absolute 支持同一会话重复退出 200。未知/伪造/全部超过 absolute 的凭证 401，不把任意字符串退出当成功。退出与刷新在相同控制记录上串行检查，不允许撤销后重建 active/从重试缓存取回 token；退出后发起的请求失败，不承诺取消已授权在途业务。故障 503，不虚报撤销。其他店铺、账号类型、设备 sid 均不变。
+
+浏览器当前约定（dev/test 与短期生产）：access+refresh 存 localStorage，按 accountType+storeSlug 分区，并校验 principal 的 merchantId/role；storeSlug 是当前公开别名，后续别名迁移需清理/迁移对应映射。同店同角色只维护一个当前浏览器凭证组，独立设备 sid 可并存；跨店不清其他键。跨 tab 用同源锁/消息协调刷新与 storage 同步，退出先设置本地会话 epoch/退出标记，清除对应凭证并广播；迟到刷新结果不得覆盖退出或新登录的状态，失败退出保留非凭证重试标识并提示服务端撤销未确认。重新打开浏览器在 absolute 内按需 refresh，idle 到期不是强制重登。
+
+localStorage 长期凭证可被 XSS 窃取，键分区不是安全隔离；不记录 Authorization、refresh body 或 token 响应。生产目标另开 change 将 access 存内存、refresh 存 HttpOnly Secure Cookie，届时重新设计 CSRF/CORS；本 change 不实现前端或 Cookie 迁移。
 
 ### 6. Security 与领域服务共同落实三层授权
 
 新 `auth/controller`、`application`、`domain`、`infrastructure` 归于同一业务域，Mapper 及 XML 在 auth 自己的边界内；更新 MyBatis 扫描及 `mapper/**/*.xml` 发现配置，并确保旧 Mapper 继续加载。新代码不导入 legacy 的 JwtProperties、BaseContext、User/Employee 或 Mapper。
 
-Spring Security 使用 stateless 新 API 链，覆盖 `/api/v1/**`，白名单仅为已有 health 与明确的四个匿名认证操作（短信、消费者注册/登录、员工登录）；其他新 API 默认认证，具体账号路由校验角色。覆盖其他路径的兼容链放行到原 MVC 拦截器，保留旧 `/admin`、`/user` 认证；不能启用 Boot 默认登录页而锁死旧接口。prod 保持文档关闭，dev/test 文档按现有规则开放。
+Spring Security 使用 stateless 新 API 链，覆盖 `/api/v1/**`，匿名白名单仅为已有 health 与三个凭证入口（店铺短信、消费者登录、员工登录）；refresh/logout 使用专门的 refresh 凭证验证分支而非无条件放行；其他新 API 默认认证，具体账号路由校验角色。覆盖其他路径的兼容链放行到原 MVC 拦截器，保留旧 `/admin`、`/user` 认证；不能启用 Boot 默认登录页而锁死旧接口。prod 保持文档关闭，dev/test 文档按现有规则开放。
 
 请求使用显式 Bearer header，不建立 cookie session，禁用 form/basic 登录；仅对这条无 cookie 的 API 链关闭 CSRF，不引入全来源凭证 CORS。首期没有前端来源清单，不开放任意 origin；后续前端接入按精确 origin 配置并测试。
 
@@ -200,7 +219,7 @@ Git Bash 可连续执行两次 `openssl rand -base64 32`，结果分别用于员
 
 独立测试账号放 `src/test/resources/db/fixture/auth_accounts.sql`，通过 `@Sql` 显式加载，不放 common/nonprod/devdata；每个相关用例有两个租户的员工、样板商户两名消费者、对照商户一名复用手机号的消费者，另按场景检查租户内用户名/手机号唯一性和资源归属。测试密码与 dev 演示密码隔离。HTTP 测试跨事务时按商户与稳定标识清理；数据库事务用例回滚，避免全表 count 或表空断言。
 
-测试层次：单元覆盖规范化、BCrypt、key/claim 校验、身份范围与错误映射；HTTP 契约测试用替身身份/会话存储保持无 Docker，确认匿名 echo 变 401、已认证非法 echo 仍 400；真实 MySQL/Redis Testcontainers 覆盖 V1→V4、已有 V3 升级、唯一竞争、短信 Lua、TTL、退出、多会话、状态失效和断连 503。只验证自身创建的数据与容器，不读写本地 gba-dev 卷。完整 `mvn -f api/pom.xml clean verify` 必须真正运行 IT；Docker 不可用失败，报告写 target，不宣称规划已通过应用测试。
+测试层次：单元覆盖规范化、BCrypt、key/claim 校验、身份范围与错误映射；HTTP 契约测试用替身身份/会话存储保持无 Docker，确认匿名 echo 变 401、已认证非法 echo 仍 400；真实 MySQL/Redis Testcontainers 覆盖 V1→V4、已有 V3 升级、唯一竞争、短信 Lua、idle/absolute、轮换重试/重放、退出刷新竞争、多会话、状态失效和断连 503。只验证自身创建的数据与容器，不读写本地 gba-dev 卷。完整 `mvn -f api/pom.xml clean verify` 必须真正运行 IT；Docker 不可用失败，报告写 target，不宣称规划已通过应用测试。
 
 日志将认证请求 module 从固定 foundation 细化为 auth，保留 requestId、event、actorId/merchantId（可信时）、errorCode、durationMs。独立 auth audit logger 接到已有 audit.json，不创建第三种日志文件，不重复输出到 application.json。未知账号只记录脱敏/摘要标识；请求体、响应 token/debugCode、Authorization 不能直接打印。
 
@@ -212,7 +231,7 @@ Git Bash 可连续执行两次 `openssl rand -base64 32`，结果分别用于员
 
 | 建议顺序 | 业务场景与模块 | 最低前置/交付边界 |
 | --- | --- | --- |
-| 1（本次） | 消费者注册登录、员工开通登录、退出；身份与 Redis 会话 | 已有基础设施/merchant；交付可信 Actor 和三层授权 |
+| 1（本次） | 消费者首次短信登录建号、员工开通登录、退出；身份与 Redis 会话 | 已有基础设施/merchant；交付可信 Actor 和三层授权 |
 | 2 | 商户维护 3C 商品/SPU、SKU、规格与公开可售状态；商品/库存 | 认证；新电商表、公开字段和商户写入边界，库存先做只读可售查询与受控维护，不提前造复杂交易系统 |
 | 3 | 消费者查询本人订单/物流，客服查询本商户数据；订单/订单项快照、物流/轨迹 | 认证与商品/SKU；数据来自开发种子或商户后台，消费者不下单、不支付；提供可复用领域只读查询服务 |
 | 4 | 商户整理商品说明、售后政策和店铺规则；知识文档管理 | 认证；文档归属、版本/可见范围、文件格式/大小与最小同步解析边界；向量数据库由真正检索模块引入 |
@@ -225,12 +244,15 @@ Git Bash 可连续执行两次 `openssl rand -base64 32`，结果分别用于员
 
 ## Risks / Trade-offs
 
+- [浏览器 localStorage 存长期凭证] → dev/test 与短期生产接受 XSS 窃取风险；账号类型/店铺键不等于浏览器隔离，Cookie 目标另开 change。
+- [轮换重试复杂度] → 同源协调、短时 requestId 幂等和同 sid 原子撤销一并验收；不承诺仅凭请求识别真人活动。
+
 - [所有员工共享开通权] → 明确首期合并角色的权限结果，只允许本商户范围，记录创建者审计；真正需要区分管理员/客服时单独细化角色。
-- [手机号在各商户产生独立消费者账号] → 对外显式选择店铺、会话绑定商户，后续统一用户需独立迁移设计，不暗中共享账号。
+- [手机号在各商户产生独立消费者账号] → 店铺首页自动带公开上下文、会话绑定商户，后续统一用户需独立迁移设计，不暗中共享账号。
 - [每次受保护请求查 MySQL 和 Redis] → 先使用唯一索引保证即时停用与简单正确性，量化性能后再决定状态缓存和版本撤销机制。
 - [模拟验证码在 dev 响应可见] → 只在 dev/test、显式开关下显示，prod fail-fast；默认日志不记 body，不能把此模式直接部署为真实短信。
 - [旧 key 解码语义变化与新 API 开始认证] → 明示旧会话重新登录和 echo 401 变化，保留旧协议回归；不声称旧接口获得新三层授权。
-- [Redis 丢失或故障] → 丢失会话要求重新登录，故障 503；会话可重建不新增备份作业，不从历史 RDB/AOF 恢复会话以免撤销记录回滚使 token 复活；灾难恢复后对 auth 命名空间受控失效或轮换 key，其他缓存按本身恢复规则处理。
+- [Redis 丢失或故障] → 仅丢 active 可用有效 refresh 恢复；control/refresh 丢失要求重新登录，故障 503；不新增备份作业，不从历史 RDB/AOF 恢复会话以免撤销记录回滚使 token 复活；灾难恢复后对 auth 命名空间受控失效或轮换 key，其他缓存按本身恢复规则处理。
 - [单 Redis Lua 方案未来扩展 Cluster] → 记录部署假设；Cluster 切换另开 hash-slot/脚本适配与一致性验证，不承诺当前多 key 脚本可直接跨槽运行。
 
 ## Migration Plan
@@ -238,6 +260,6 @@ Git Bash 可连续执行两次 `openssl rand -base64 32`，结果分别用于员
 1. apply 开始先冻结需求/API/业务码与兼容差异，再编写 V4；保持 V1/V2/V3 不变，受控迁移前按现有手册备份结构与数据并能在隔离库恢复。
 2. 空库按 V1→V4 迁移，既有已登记 V3 库只追加 V4；两个账号表由结构迁移创建，dev 演示账号只由 devdata 加载，test 账号只由测试显式加载 fixture。租户根继续由 nonprod seed 供 dev/test 使用；prod 独立迁移服务只加载 migration/common，不包含演示租户或认证账号。
 3. 完成 JWT/模拟短信配置示例与校验后本地生成真实 dev key，保留用户已有其他配置；现有 gba-dev MySQL/Redis 继续使用，重启 API 即执行待迁移并加载 devdata。
-4. 加入新安全链、账号用例与会话，修正请求关联顺序及 legacy 兼容；运行单元、HTTP 与容器完整验收，导出实际 Springdoc 快照，按文档手动注册/开通/登录/退出。
+4. 加入新安全链、账号用例与会话，修正请求关联顺序及 legacy 兼容；运行单元、HTTP 与容器完整验收，导出实际 Springdoc 快照，按文档短信自动建号/员工开通/登录/刷新/退出。
 5. 生产发布及首商户/首员工开通另行规划：结合商户自助入驻、首管理员绑定与平台管理方案决定创建流程和是否需要生产种子；本 change 不提供命令/HTTP 初始化入口或生产账号种子，也不执行云发布。
 6. 应用回退先核验新增表与旧应用兼容；本次 DDL 为新增表，通常可保留表回退代码，但不得重新恢复弱 key 或让新 token 流入旧接口。若必须恢复数据库，按已有结构＋数据备份方案处置新增写入，不能自动 drop 新表、删卷、clean/repair 或改历史迁移。
