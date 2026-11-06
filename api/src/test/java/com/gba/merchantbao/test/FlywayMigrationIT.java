@@ -71,7 +71,7 @@ class FlywayMigrationIT {
         assertCurrentVersionFour(flyway);
         try (Connection connection = connection()) {
             ScriptUtils.executeSqlScript(connection,
-                    new ClassPathResource("db/seed/nonprod/R__local_test_tenants.sql"));
+                    new ClassPathResource("db/seed/nonprod/R__010_local_test_tenants.sql"));
             try (ResultSet tenants = connection.createStatement().executeQuery(
                     "SELECT merchant_code FROM merchant ORDER BY merchant_code")) {
                 assertThat(tenants.next()).isTrue();

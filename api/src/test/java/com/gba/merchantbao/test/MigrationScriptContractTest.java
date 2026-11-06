@@ -40,8 +40,8 @@ class MigrationScriptContractTest {
 
     @Test
     void tenantFixturesAreIdempotentAndProductionDoesNotLoadThem() throws IOException {
-        String seed = resource("db/seed/nonprod/R__local_test_tenants.sql");
-        assertThat(seed).contains("M_3C_DEMO", "M_ISOLATION_TEST", "ON DUPLICATE KEY UPDATE");
+        String seed = resource("db/seed/nonprod/R__010_local_test_tenants.sql");
+        assertThat(seed).contains("M_3C_DEMO", "M_ISOLATION_TEST", "WHERE NOT EXISTS");
         assertThat(resource("application-prod.yml")).doesNotContain("db/devdata");
         assertThat(resource("application-test.yml")).contains("classpath:db/migration,classpath:db/seed/common,classpath:db/seed/nonprod");
     }

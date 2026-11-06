@@ -116,3 +116,9 @@ git check-ignore api/docs/prod-profile/opt/gba/docker-compose.yml api/docs/prod-
 
 历史配置中曾出现的真实数据库、OSS、微信等凭据，应到各服务提供方轮换；删除当前文件中的旧值不会让历史凭据失效。
 开发日志 api/.runtime/logs，Maven 测试只写 api/target/test-logs，详见 [日志](logging.md)、[测试](../testing/README.md)。
+
+## 种子改名后的启动
+
+已执行旧名 R 的现有 Docker Compose 开发库，先完成一次 [开发种子受控升级](dev-seed-upgrade.md)，保留命名卷与真实历史；新空库无需该维护。日常先在仓库根 `docker compose up -d --wait`，再在 IDEA 激活 dev 启动，或在 api 下 `mvn spring-boot:run '-Dspring-boot.run.profiles=dev'`。Flyway 自动执行待迁移，不自动 repair、不通过回调重跑种子。当前没有 Maven Wrapper，使用已安装 Maven。
+
+R 仅首次或校验和变化时执行，显式补种见升级说明；不要靠重启恢复人工删除的演示数据。prod 保持独立迁移成功后启动关闭 Flyway 的应用，与本次开发库维护分离。

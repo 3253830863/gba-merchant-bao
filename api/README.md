@@ -12,6 +12,7 @@
 - [自动化测试、容器隔离和日志目录](docs/testing/README.md)
 - [本地持久联调与 IDEA/Apifox](docs/deployment/local-development.md)
 - [Flyway 空库与旧库接管](docs/deployment/flyway-baseline.md)
+- [开发种子排序与旧名历史一次性升级](docs/deployment/dev-seed-upgrade.md)
 - [生产准备与未来手动发布](docs/deployment/production.md)
 - [日志](docs/deployment/logging.md) / [备份恢复](docs/deployment/backup-recovery.md)
 - [基础运行环境验收记录](docs/deployment/verification.md)

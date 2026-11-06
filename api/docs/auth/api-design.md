@@ -1,6 +1,6 @@
 # 认证模块 API 契约
 
-状态：以下九操作已实现，隔离测试与联调见 [联调手册](manual-verification.md)。[认证 OpenAPI 快照](../../../docs/api/auth-v1.openapi.yaml) 来自实际 Springdoc auth-v1 分组；第 8 节完整验收暂未执行，未发布生产。
+状态：以下九操作已实现，隔离测试与联调见 [联调手册](manual-verification.md)。[认证 OpenAPI 快照](../../../docs/api/auth-v1.openapi.yaml) 来自实际 Springdoc auth-v1 分组；第 9 节完整验收暂未执行，未发布生产。
 
 ## 通用约定
 

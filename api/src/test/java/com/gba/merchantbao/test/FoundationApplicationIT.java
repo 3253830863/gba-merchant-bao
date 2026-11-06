@@ -76,7 +76,7 @@ class FoundationApplicationIT {
                 + "AND success=1 ORDER BY installed_rank", String.class)).containsExactly("1", "2", "3", "4");
         assertThat(jdbc.queryForList("SELECT script FROM flyway_schema_history WHERE success=0", String.class)).isEmpty();
         assertThat(jdbc.queryForList("SELECT script FROM flyway_schema_history WHERE version IS NULL AND success=1", String.class))
-                .contains("R__local_test_tenants.sql");
+                .contains("R__010_local_test_tenants.sql");
         try (var connection = redis.getConnection()) {
             assertThat(connection.ping()).isEqualTo("PONG");
         }

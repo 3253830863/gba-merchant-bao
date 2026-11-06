@@ -19,8 +19,8 @@ class FoundationSchemaContractTest {
         String merchant = resource("db/migration/V2__merchant_tenant_root.sql");
         assertThat(merchant).contains("merchant_code", "NOT NULL", "uk_merchant_code");
         assertThat(merchant).contains("idx_merchant_status");
-        assertThat(resource("db/seed/nonprod/R__local_test_tenants.sql"))
-                .contains("M_3C_DEMO", "M_ISOLATION_TEST", "ON DUPLICATE KEY UPDATE");
+        assertThat(resource("db/seed/nonprod/R__010_local_test_tenants.sql"))
+                .contains("M_3C_DEMO", "M_ISOLATION_TEST", "WHERE NOT EXISTS");
     }
 
     /*
@@ -34,7 +34,8 @@ class FoundationSchemaContractTest {
         Map<String, String> expected = Map.of(
                 "db/migration/V1__legacy_schema_baseline.sql", "efb5f82109302e0b4f794d8fd25242fdaba5244ebdc70aa93ee842b48d732da6",
                 "db/migration/V2__merchant_tenant_root.sql", "4a935fe633de73bd9f9e7dfd41015a13ecdbf146b0c5da6f228c1ab3428e7b49",
-                "db/migration/V3__merchant_currency_compatibility.sql", "bf1aa83d261bdc70b3bd16f4b032b07a03ba1f3eaf6ecabefeed77e76ab54567"
+                "db/migration/V3__merchant_currency_compatibility.sql", "bf1aa83d261bdc70b3bd16f4b032b07a03ba1f3eaf6ecabefeed77e76ab54567",
+                "db/migration/V4__auth_accounts.sql", "4ecdcbece96f51fd8fcf573cc175bfefd75d3a9c7994908a52231bdec445c64c"
         );
         for (Map.Entry<String, String> entry : expected.entrySet()) {
             assertThat(sha256(resource(entry.getKey()))).isEqualTo(entry.getValue());

@@ -215,7 +215,19 @@ Git Bash 可连续执行两次 `openssl rand -base64 32`，结果分别用于员
 
 ### 8. 开发数据、测试与交付文档按现有分层追加
 
-`db/devdata/R__auth_demo_accounts.sql` 为两个既有非生产租户建立演示首员工：均可用 demo_staff 用户名、同一合成手机号验证跨租户唯一性；样板商户至少两个消费者，对照商户至少一个同手机号消费者。实际演示手机号/用户名/显示名和公开的 dev-only 密码在 `api/docs/auth/manual-verification.md` 登记；合成手机号不发真实短信。SQL 只保存 BCrypt hash，按 merchant_code 解析既有租户；幂等重跑只插入缺失记录，不重置密码、状态或展示资料，不能借 upsert 覆盖用户改动。该路径仅由 dev Flyway locations 加载，不把演示租户或账号作为生产初始化数据。
+`db/seed/nonprod/R__010_local_test_tenants.sql` 与 `db/devdata/R__020_auth_demo_accounts.sql` 使用统一的三位数字描述前缀，显式表达租户先于账号。Flyway 先执行所有待执行 V，再按描述执行待执行 R；locations 的顺序不是依赖声明。V1–V4 保持不变，新 V 不得依赖 R 已创建的记录。后续实际模块在同一编号表登记依赖顺序，不提前创建商品、订单或其他模块种子。
+
+账号种子为两个既有非生产租户建立演示首员工：均可用 demo_staff 用户名、同一合成手机号验证跨租户唯一性；样板商户至少两个消费者，对照商户至少一个同手机号消费者。实际演示手机号/用户名/显示名和公开的 dev-only 密码在 `api/docs/auth/manual-verification.md` 登记；合成手机号不发真实短信。SQL 只保存 BCrypt hash，按 merchant_code 解析既有租户。租户和账号均只补缺失记录，不覆盖已有密码、状态、名称或其他人工修改；固定 ID 与业务标识不一致或缺少预期租户时明确失败，不能用 INSERT IGNORE 或零行插入掩盖冲突。账号仅由 dev Flyway locations 加载，不把演示租户或账号作为生产初始化数据。
+
+移除 `AuthDevDataConfiguration` 的 AFTER_MIGRATE 重跑逻辑，不使用启动回调或其他初始化器补写数据。R 仅首次发现或校验和变化时执行；上游 R 变化不自动触发下游，手动删除演示数据后普通重启不承诺修复。需补种时显式执行受控操作，仍遵守只补缺失及身份检查，不改变 history 伪造待执行。
+
+#### 已有开发库的一次性名称过渡
+
+采用“统一新文件名 + 一次性受控升级已有开发库 + 保留真实历史记录”。运行期不保留旧名空脚本。新空库直接执行新名字；历史库先停同库应用、备份结构和数据（包含 history），并在隔离实例恢复验证。独立维护工具固定 Flyway 11.7.2，使用目标 dev 完整 locations，默认只检查，不接入 Spring、Compose 自动启动或生产发布。检查目标实例/库名、停机确认及迁移状态；仅允许实际已执行的旧 `R__local_test_tenants.sql`、`R__auth_demo_accounts.sql` 为 Missing，新编号 R 为 Pending。未知缺失、失败、意外待迁移或 V 校验和变化均拒绝，不盲目 repair。
+
+受控起点仅允许 V1–V4 全部成功，或 V1–V3 成功且只有固定的 `V4__auth_accounts.sql` Pending；后一分支须在 review.json 明列 pendingVersions=["4"]，不是放宽任意 V 待迁移。2026-11-06 用户已选择 B，同意在同一维护窗口补 V4 和完成种子改名。
+
+经维护人员核对报告及备份恢复证据后显式执行一次 repair，核验仅预期旧 R 标记 Deleted、没有其他迁移元数据对齐或失败清理；随后 migrate（若 V4 待执行则先 V4，再 010、020，否则只执行两个新 R）、validate，确认原历史执行记录与现有业务数据保留。Deleted 表示脚本退役，不删除其业务数据；改名后的 R 作为新迁移登记执行。保留维护报告、备份校验和与前后 history，工具重入识别已完成过渡、不重复 repair。失败立即停止，禁止直接 UPDATE/DELETE history、clean/删卷或永久放宽校验。每个旧开发库各升级一次，过渡后不得用旧迁移包混跑；prod 不加载这些种子，不执行此次 repair。
 
 独立测试账号放 `src/test/resources/db/fixture/auth_accounts.sql`，通过 `@Sql` 显式加载，不放 common/nonprod/devdata；每个相关用例有两个租户的员工、样板商户两名消费者、对照商户一名复用手机号的消费者，另按场景检查租户内用户名/手机号唯一性和资源归属。测试密码与 dev 演示密码隔离。HTTP 测试跨事务时按商户与稳定标识清理；数据库事务用例回滚，避免全表 count 或表空断言。
 
@@ -259,7 +271,7 @@ Git Bash 可连续执行两次 `openssl rand -base64 32`，结果分别用于员
 
 1. apply 开始先冻结需求/API/业务码与兼容差异，再编写 V4；保持 V1/V2/V3 不变，受控迁移前按现有手册备份结构与数据并能在隔离库恢复。
 2. 空库按 V1→V4 迁移，既有已登记 V3 库只追加 V4；两个账号表由结构迁移创建，dev 演示账号只由 devdata 加载，test 账号只由测试显式加载 fixture。租户根继续由 nonprod seed 供 dev/test 使用；prod 独立迁移服务只加载 migration/common，不包含演示租户或认证账号。
-3. 完成 JWT/模拟短信配置示例与校验后本地生成真实 dev key，保留用户已有其他配置；现有 gba-dev MySQL/Redis 继续使用，重启 API 即执行待迁移并加载 devdata。
+3. 完成 JWT/模拟短信配置示例与校验后本地生成真实 dev key，保留用户已有其他配置；现有 gba-dev MySQL/Redis 与数据卷继续使用。已登记旧名 R 的开发库先按第 8 节完成一次性受控升级，再启动新 dev API；空库及已升级库正常启动仅自动 migrate，不自动 repair 或额外补种。生产仍使用迁移账号独立 migrate，成功后用 DML 账号启动关闭 Flyway 的 prod 应用。
 4. 加入新安全链、账号用例与会话，修正请求关联顺序及 legacy 兼容；运行单元、HTTP 与容器完整验收，导出实际 Springdoc 快照，按文档短信自动建号/员工开通/登录/刷新/退出。
 5. 生产发布及首商户/首员工开通另行规划：结合商户自助入驻、首管理员绑定与平台管理方案决定创建流程和是否需要生产种子；本 change 不提供命令/HTTP 初始化入口或生产账号种子，也不执行云发布。
 6. 应用回退先核验新增表与旧应用兼容；本次 DDL 为新增表，通常可保留表回退代码，但不得重新恢复弱 key 或让新 token 流入旧接口。若必须恢复数据库，按已有结构＋数据备份方案处置新增写入，不能自动 drop 新表、删卷、clean/repair 或改历史迁移。

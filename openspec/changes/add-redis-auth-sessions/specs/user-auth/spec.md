@@ -176,4 +176,34 @@ dev MUST 用 db/devdata 提供两个既有 nonprod 租户首员工、样板双�
 
 #### Scenario: Seed and fixture boundaries are verified
 - **WHEN** dev 重复初始化或 test/prod 启动
-- **THEN** dev 不覆盖已有账号；test 仅显式加载 fixture，prod 无演示账号；V1/V2/V3 不变，仅计划 V4 追加表结构
+- **THEN** dev 不覆盖已有账号；test 仅显式加载 fixture，prod 无演示账号；V1–V4 保持不变
+
+### Requirement: Development seeds shall execute in Flyway order with a controlled history transition
+
+租户根与认证演示账号 MUST 分别使用 `R__010_local_test_tenants.sql`、`R__020_auth_demo_accounts.sql`，由 Flyway 按描述排序执行，MUST NOT 通过 AFTER_MIGRATE 回调或启动初始化器重跑。脚本 MUST 只补缺失记录并保留人工修改；缺少预期租户或稳定 ID/业务标识/商户归属冲突 MUST 明确失败，不静默忽略。R 仅首次或校验和变化时执行，上游变化不自动触发下游，普通重启不承诺补回人工删除的数据。
+
+历史开发库的改名 MUST 使用独立、显式的一次性维护流程，停同库应用，备份结构＋数据及 history 并完成隔离恢复演练；核验完整 dev 迁移集合，仅允许已知旧 R Missing 与新 R Pending，失败、未知缺失、意外待迁移或 V 校验和变化 MUST 阻断。经报告核对后 repair 仅标记预期旧 R Deleted，再 migrate、validate，保留真实历史与业务数据。MUST NOT 保留运行期旧名兼容脚本、自动 repair、手工改 history、关闭校验或删除业务卷。prod 不加载开发种子，不执行该开发库 repair，继续独立迁移成功后启动应用。
+
+#### Scenario: A fresh development database starts
+- **WHEN** dev 连接空库正常启动
+- **THEN** V1–V4 先完成，随后 010 租户、020 账号按序执行；history 与实际执行一致，无回调额外写入
+
+#### Scenario: Existing identities and changes are preserved
+- **WHEN** 种子显式重复执行，已有租户或账号已修改名称、状态或密码
+- **THEN** 不覆盖原行；缺少依赖或稳定标识冲突时明确报错并阻止应用就绪
+
+#### Scenario: Known historical names are retired once
+- **WHEN** 经核验的旧开发库显式执行受控改名升级
+- **THEN** 旧 R 实际执行记录保留并标记退役，新 R 正常登记成功，业务数据保留；再次运行工具识别已完成，无重复 repair
+
+#### Scenario: Unexpected migration differences are found
+- **WHEN** 升级检查发现未知 Missing、失败、V 校验和变化、意外待迁移或目标不符
+- **THEN** 在任何 repair/migrate 前失败，保留检查证据，不自动修复历史或继续发布
+
+#### Scenario: A reviewed V3 development database completes the transition
+- **WHEN** 已有旧租户 R 历史的开发库 V1–V3 成功，仅固定 V4 及两个新 R 待执行，维护人员确认 B 分支并完成备份隔离恢复
+- **THEN** 报告明确列出待执行 V4，repair 只退役旧 R，随后按 V4→010→020 迁移并验证；其他待执行 V、失败与校验和变化仍阻断，全部既有业务行和历史保留
+
+#### Scenario: Multiple development instances migrate concurrently
+- **WHEN** 两个独立 Flyway 实例使用相同迁移集合连接同一隔离开发库
+- **THEN** 通过 Flyway 锁协调种子执行，无重复记录或唯一键竞争失败；无文件变化重复 migrate 不增加迁移记录、不修改业务行

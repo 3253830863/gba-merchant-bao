@@ -29,6 +29,8 @@
         <poi.version>5.4.1</poi.version>
         <wechatpay.version>0.4.8</wechatpay.version>
         <testcontainers.version>1.20.6</testcontainers.version>
+        <!-- Maintenance CLI and application must use identical Flyway semantics. -->
+        <flyway.version>11.7.2</flyway.version>
     </properties>
 
     <dependencyManagement>

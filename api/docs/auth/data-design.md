@@ -67,10 +67,12 @@ MySQL TIMESTAMP 按时区转换并保存时刻，持久化行使用 `Instant`，
 | db/migration/V4__auth_accounts.sql | 无，只有 DDL | dev/test 与受控 prod 迁移 |
 | db/seed/common | 无认证账号 | 全环境参考数据路径 |
 | db/seed/nonprod | 只有两个既有租户根，无认证账号 | dev/test Flyway |
-| db/devdata | R__auth_demo_accounts.sql，两个首员工及三个消费者 | 仅 dev Flyway |
+| db/devdata | R__020_auth_demo_accounts.sql，两个首员工及三个消费者 | 仅 dev Flyway |
 | src/test/resources/db/fixture/auth_accounts.sql | 独立测试账号 | 相关测试 `@Sql` 显式加载，不在任意 Flyway locations |
 
-空 dev 库中 repeatable 按描述排序，auth 脚本可能早于 nonprod 商户种子执行。`AuthDevDataConfiguration` 仅在 dev（非 prod）且 locations 显式包含 devdata 时注册 AFTER_MIGRATE 回调，在全部迁移完成后重跑同一份只插缺失账号的 SQL。保留既有种子名称/历史；重复 migrate 不覆盖账号密码、状态或展示资料。test 默认不加载该位置，专用隔离联调测试才显式启用 dev。
+空 dev 库中先执行所有待执行 V，再按描述排序执行 R：`010_local_test_tenants` 先于 `020_auth_demo_accounts`，locations 的列举顺序不是依赖。没有迁移完成回调或启动补写。租户与账号只插缺失记录，保留密码、状态和人工资料；缺少预期租户或固定 ID/业务标识冲突以 `dev_seed_*` 列名明确失败。普通 test 不加载 devdata，专用隔离联调测试才显式启用。
+
+已记录历史旧名 R 的开发库须先按 [种子升级说明](../deployment/dev-seed-upgrade.md) 完成一次性受控维护；运行目录不保留旧名空脚本。旧执行记录保留，repair 仅将核验过的旧 R 标记 Deleted（不删除业务数据），再执行新 R 并 validate。应用启动不自动 repair。R 仅首次或校验和变化执行，上游变化不自动触发下游，手工删除数据后普通重启不自动补回；补种须显式受控执行，不改 history 伪造待执行。
 
 fixture 按 `M_3C_DEMO` / `M_ISOLATION_TEST` 商户编码解析 merchant.id，不复制租户内部 ID。两个租户各有 fixture_staff；样板租户两名消费者，对照租户一名复用手机号消费者。使用合成号码、固定测试主键和独立 test-only BCrypt cost=12 凭证，与后续 dev 演示密码分离，不发送真实短信。
 
