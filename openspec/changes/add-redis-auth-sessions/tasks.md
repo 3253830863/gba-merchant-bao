@@ -17,12 +17,12 @@
 
 ## 3. JWT、运行配置与兼容密钥
 
-- [ ] 3.1 新增 auth 自有 JWT 配置和启动校验，属性使用 `merchant.auth.jwt.merchant-staff-secret-base64` 与 `consumer-secret-base64`；单元覆盖缺失、占位、非法编码、少于 32 字节和两 key 相同均启动失败，错误信息不含密钥值。
-- [ ] 3.2 实现显式 HS256、issuer/audience、sub/merchantId/role/sid/jti/iat/exp，access 标称 7200 秒且不越 original absolute，jti 与 sid 不再等同；单元覆盖伪造/算法降级、错误发行者/受众、过期、未知角色、缺失/不一致 claims、临近 absolute 截短与无未验签身份。
-- [ ] 3.3 移除共享 YAML 的弱默认，将旧 merchant.jwt 配置桥接到新来源；legacy JwtUtil 同步为 Base64 解码与 HS256，去掉短口令补长；验证旧协议正常签验、新旧 token 交叉使用均被拒绝，并检查旧路径/头/envelope 不变。
-- [ ] 3.4 更新 dev YAML 示例、test-only 配置、prod YAML 与 prod YAML 示例、生产 `.env.example` 注释；test 使用独立测试 key，prod 保留 ADMIN_JWT_SECRET/USER_JWT_SECRET 变量映射；配置测试确认实际 dev 配置不进 JAR，prod 无 dev fallback，JWT 不进入根 dev `.env`/Compose。
-- [ ] 3.5 在被忽略的实际 `api/src/main/resources/application-dev.yml` 中本地生成两把不同的安全随机 32 字节 Base64 key；保留已有合规值及其他用户配置，不在输出中打印 key；通过只输出成功状态的校验和 `git check-ignore` 确认强度、区分及未跟踪。
-- [ ] 3.6 更新 `api/docs/deployment/local-development.md` 与根 README 的 JWT 操作：两次 openssl、正确属性、员工非 root、改 YAML 重启 API、现有 gba-dev 使用 up -d、Compose 配置变化与 restart 区别；逐条核对命令和真实服务结构，移除登录需要重复 Redis/login profile 的旧说明，不重建或删除本地卷。
+- [x] 3.1 新增 auth 自有 JWT 配置和启动校验，属性使用 `merchant.auth.jwt.merchant-staff-secret-base64` 与 `consumer-secret-base64`；单元覆盖缺失、占位、非法编码、少于 32 字节和两 key 相同均启动失败，错误信息不含密钥值。
+- [x] 3.2 实现显式 HS256、issuer/audience、sub/merchantId/role/sid/jti/iat/exp，access 标称 7200 秒且不越 original absolute，jti 与 sid 不再等同；单元覆盖伪造/算法降级、错误发行者/受众、过期、未知角色、缺失/不一致 claims、临近 absolute 截短与无未验签身份。
+- [x] 3.3 移除共享 YAML 的弱默认，将旧 merchant.jwt 配置桥接到新来源；legacy JwtUtil 同步为 Base64 解码与 HS256，去掉短口令补长；验证旧协议正常签验、新旧 token 交叉使用均被拒绝，并检查旧路径/头/envelope 不变。
+- [x] 3.4 更新 dev YAML 示例、test-only 配置、prod YAML 与 prod YAML 示例、生产 `.env.example` 注释；test 使用独立测试 key，prod 保留 ADMIN_JWT_SECRET/USER_JWT_SECRET 变量映射；配置测试确认实际 dev 配置不进 JAR，prod 无 dev fallback，JWT 不进入根 dev `.env`/Compose。
+- [x] 3.5 在被忽略的实际 `api/src/main/resources/application-dev.yml` 中本地生成两把不同的安全随机 32 字节 Base64 key；保留已有合规值及其他用户配置，不在输出中打印 key；通过只输出成功状态的校验和 `git check-ignore` 确认强度、区分及未跟踪。
+- [x] 3.6 更新 `api/docs/deployment/local-development.md` 与根 README 的 JWT 操作：两次 openssl、正确属性、员工非 root、改 YAML 重启 API、现有 gba-dev 使用 up -d、Compose 配置变化与 restart 区别；逐条核对命令和真实服务结构，移除登录需要重复 Redis/login profile 的旧说明，不重建或删除本地卷。
 
 ## 4. 模拟短信、一次性挑战与限流
 

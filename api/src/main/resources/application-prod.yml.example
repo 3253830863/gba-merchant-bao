@@ -26,8 +26,14 @@ merchant:
     port: ${REDIS_PORT}
     database: 0
   jwt:
-    admin-secret-key: ${ADMIN_JWT_SECRET}
-    user-secret-key: ${USER_JWT_SECRET}
+    admin-secret-key: ${merchant.auth.jwt.merchant-staff-secret-base64}
+    user-secret-key: ${merchant.auth.jwt.consumer-secret-base64}
+  auth:
+    jwt:
+      merchant-staff-secret-base64: ${ADMIN_JWT_SECRET}
+      consumer-secret-base64: ${USER_JWT_SECRET}
+      issuer: merchantbao
+      audience: api-v1
   websocket:
     enabled: false
   alioss:

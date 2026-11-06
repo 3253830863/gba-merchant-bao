@@ -5,8 +5,10 @@
 ## 首次配置（仓库根 PowerShell）
 
 ```powershell
-Copy-Item .env.example .env
-Copy-Item api/src/main/resources/application-dev.yml.example api/src/main/resources/application-dev.yml
+if (-not (Test-Path .env)) { Copy-Item .env.example .env }
+if (-not (Test-Path api/src/main/resources/application-dev.yml)) {
+    Copy-Item api/src/main/resources/application-dev.yml.example api/src/main/resources/application-dev.yml
+}
 ```
 
 编辑被忽略的实际文件：根 `.env` 中 MYSQL_ROOT_PASSWORD、MYSQL_PASSWORD 初始均填 `123456`；dev YAML 的 merchant.datasource.password 同样填此值。
@@ -25,9 +27,38 @@ docker compose ps
 `docker compose config --quiet`。它是配置检查命令，不是每天启动 dev 的前置步骤。
 
 当前 dev Compose 只包含 MySQL 和 Redis，没有需要显式激活的 Compose profile。
-后续某个技术模块首次引入 RabbitMQ、登录会话 Redis 等中间件时，才为该模块声明独立
-profile，并使用明确的名称启动，例如 `docker compose --profile login up -d`。
-不要使用 `docker compose --profile "*" up -d`，以免把所有尚未验收的模块依赖一起启动。
+登录会话复用现有 Redis，不需要 login profile 或额外 Redis 服务。后续引入其他中间件时，
+按对应模块说明启动；不要使用 `docker compose --profile "*" up -d`。
+
+## 本地 JWT 密钥（首次配置）
+
+在本机 Git Bash 等有 OpenSSL 的终端运行两次，各生成一把独立密钥：
+
+```bash
+openssl rand -base64 32
+openssl rand -base64 32
+```
+
+将结果分别写入被忽略的实际 `api/src/main/resources/application-dev.yml`，合并到已有
+`merchant` 配置下，不要覆盖数据库等其他设置：
+
+```yaml
+merchant:
+  auth:
+    jwt:
+      merchant-staff-secret-base64: <第一次生成的员工密钥>
+      consumer-secret-base64: <第二次生成的消费者密钥>
+```
+
+员工指商户员工 MERCHANT_STAFF，与 MySQL root 或 dev_admin 无关。已有合规、不同的两把
+密钥可以保留；示例占位符、非法 Base64、解码不足 32 字节或两把相同都会导致启动失败。
+不要把真实值写回 `.example`、根 `.env`、Compose、截图或提交；test profile 的公开测试值
+仅供自动化测试。prod 从 `ADMIN_JWT_SECRET` / `USER_JWT_SECRET` 注入独立 Base64 密钥，
+其中 ADMIN 也是员工含义。旧 `merchant.jwt` 自动引用新配置，不再重复填写。
+
+每次修改实际 dev YAML 后重启 IDEA 中的 API，才能加载配置；更换密钥后已有新旧 token
+需要重新登录。JWT 密钥只由 API 使用：根 Compose 没有 app 服务，因此仅改 JWT 时不需要
+Docker 命令，也不用改根 `.env`。本次 Base64 语义替代旧短口令补长，旧会话同样需重新登录。
 
 IDEA 运行 MerchantApplication，JDK 21，工作目录设为仓库的 api，Active profiles 只填 dev。
 也可从 api 目录运行：
@@ -36,7 +67,7 @@ IDEA 运行 MerchantApplication，JDK 21，工作目录设为仓库的 api，Act
 mvn spring-boot:run '-Dspring-boot.run.arguments=--spring.profiles.active=dev'
 ```
 
-首次启动空库自动执行 V1→V2→V3 和适用种子，无需 baseline。仅激活 dev 就能运行，无需个人旧库或云端 OSS/微信凭据；占位外部配置不表示相应业务可用。
+首次启动空库自动执行 V1→V4 和适用种子，无需 baseline。填好实际 dev YAML 后仅激活 dev 即可启动，无需个人旧库或云端 OSS/微信凭据；占位外部配置不表示相应业务可用。
 前端及 Apifox 的 API base URL 为 http://localhost:8080，健康检查 GET /api/v1/health；文档 /swagger-ui.html、/v3/api-docs.yaml。
 数据库工具连接 127.0.0.1:3307/gba_dev，dev_admin；Redis 工具连接 127.0.0.1:6380，无认证。前端调用 API，不直接连接数据库。
 多个前端/后端开发者各自建立空库；共享联调如需 API 远程可达，单独约定主机地址。中间件保持 loopback。
@@ -44,13 +75,16 @@ mvn spring-boot:run '-Dspring-boot.run.arguments=--spring.profiles.active=dev'
 ## 日常启动和已有卷
 
 ```powershell
+docker compose up -d
+# 可选：等待健康检查
 docker compose up -d --wait
-docker compose restart mysql redis
-# 可重建容器，保留命名卷
-docker compose up -d --force-recreate --wait
 # 停止时保留数据
 docker compose down
 ```
+
+已有 gba-dev 使用 `up -d` 会复用命名卷；它也会读取 `.env` 和 Compose，并在服务配置变化时
+按需重建容器。`docker compose restart mysql redis` 只重启现有容器进程，不重新应用环境变量、
+端口或挂载配置；仅在配置未变且需要重启进程时使用。以上操作都不要求重建或删除数据卷。
 
 如果需要等待健康检查完成，可在确认配置后使用 `docker compose up -d --wait`；它是可选的
 等待步骤。Docker Desktop 启动后，推荐顺序是：启动 Compose 中间件、在 IDEA 激活 Spring

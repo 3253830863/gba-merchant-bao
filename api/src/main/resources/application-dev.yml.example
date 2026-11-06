@@ -3,6 +3,10 @@ spring:
     locations: classpath:db/migration,classpath:db/seed/common,classpath:db/seed/nonprod,classpath:db/devdata
 
 merchant:
+  auth:
+    jwt:
+      merchant-staff-secret-base64: REPLACE_WITH_MERCHANT_STAFF_BASE64_KEY
+      consumer-secret-base64: REPLACE_WITH_CONSUMER_BASE64_KEY
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
     host: 127.0.0.1

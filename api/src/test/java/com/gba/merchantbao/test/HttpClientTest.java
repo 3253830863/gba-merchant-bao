@@ -29,6 +29,64 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @ActiveProfiles("test")
 public class HttpClientTest {
 
+    @org.springframework.test.context.bean.override.mockito.MockitoBean
+    private com.gba.merchantbao.legacy.service.EmployeeService employeeService;
+    @org.springframework.test.context.bean.override.mockito.MockitoBean
+    private com.gba.merchantbao.legacy.service.UserService userService;
+    @org.springframework.test.context.bean.override.mockito.MockitoBean
+    private com.gba.merchantbao.legacy.service.AddressBookService addressBookService;
+    @Autowired
+    private com.fasterxml.jackson.databind.ObjectMapper objectMapper;
+    @Autowired
+    private com.gba.merchantbao.legacy.properties.JwtProperties jwtProperties;
+    @Autowired
+    private com.gba.merchantbao.auth.application.AccessTokenService accessTokens;
+
+    @org.junit.jupiter.api.AfterEach
+    void clearLegacyTestContext() {
+        com.gba.merchantbao.legacy.context.BaseContext.removeCurrentId();
+    }
+
+    @Test
+    void legacyLoginPathsHeadersAndEnvelopeRemainCompatible() throws Exception {
+        var employee = new com.gba.merchantbao.legacy.entity.Employee();
+        employee.setId(101L); employee.setUsername("contract-staff"); employee.setName("Contract");
+        org.mockito.Mockito.when(employeeService.login(org.mockito.ArgumentMatchers.any())).thenReturn(employee);
+        var user = new com.gba.merchantbao.legacy.entity.User();
+        user.setId(102L); user.setOpenid("test-openid");
+        org.mockito.Mockito.when(userService.wxLogin(org.mockito.ArgumentMatchers.any())).thenReturn(user);
+        org.mockito.Mockito.when(addressBookService.list(org.mockito.ArgumentMatchers.any())).thenReturn(java.util.List.of());
+
+        String adminToken = loginToken("/admin/employee/login", "{\"username\":\"contract-staff\"}");
+        String userToken = loginToken("/user/user/login", "{}");
+        org.assertj.core.api.Assertions.assertThat(com.gba.merchantbao.legacy.utils.JwtUtil.parseJWT(
+                jwtProperties.getAdminSecretKey(), adminToken)).containsKey("empId");
+        org.assertj.core.api.Assertions.assertThat(com.gba.merchantbao.legacy.utils.JwtUtil.parseJWT(
+                jwtProperties.getUserSecretKey(), userToken)).containsKey("userId");
+        mockMvc.perform(post("/admin/employee/logout").header("token", adminToken))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.code").value(1));
+        mockMvc.perform(get("/user/addressBook/list").header("authentication", userToken))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.code").value(1)).andExpect(jsonPath("$.data").isArray());
+        mockMvc.perform(post("/admin/employee/logout").header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/user/addressBook/list").header("token", userToken)).andExpect(status().isUnauthorized());
+        for (var role : com.gba.merchantbao.auth.domain.AccountRole.values()) {
+            var now = java.time.Instant.now();
+            String newToken = accessTokens.issue(new com.gba.merchantbao.auth.domain.AuthPrincipal(101, 202, role),
+                    "sid", now, now.plusSeconds(86400)).token();
+            mockMvc.perform(post("/admin/employee/logout").header("token", newToken)).andExpect(status().isUnauthorized());
+            mockMvc.perform(get("/user/addressBook/list").header("authentication", newToken)).andExpect(status().isUnauthorized());
+        }
+    }
+
+    private String loginToken(String path, String body) throws Exception {
+        var response = mockMvc.perform(post(path).contentType("application/json").content(body))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.code").value(1))
+                .andExpect(jsonPath("$.msg").hasJsonPath()).andExpect(jsonPath("$.data.token").isNotEmpty())
+                .andExpect(jsonPath("$.message").doesNotExist()).andReturn().getResponse().getContentAsString();
+        return objectMapper.readTree(response).path("data").path("token").asText();
+    }
+
     @Autowired
     private MockMvc mockMvc;
 
