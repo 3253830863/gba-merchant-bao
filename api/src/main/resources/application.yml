@@ -32,11 +32,11 @@ springdoc:
   swagger-ui:
     enabled: ${merchant.openapi.enabled:true}
     path: /swagger-ui.html
-  packages-to-scan: com.gba.merchantbao.legacy,com.gba.merchantbao.api
+  packages-to-scan: com.gba.merchantbao.legacy,com.gba.merchantbao.api,com.gba.merchantbao.auth.controller
 
 mybatis:
   #mapper配置文件
-  mapper-locations: classpath:mapper/*.xml
+  mapper-locations: classpath*:mapper/**/*.xml
   type-aliases-package: com.gba.merchantbao.legacy.entity
   configuration:
     #开启驼峰命名
@@ -51,18 +51,24 @@ logging:
     com.gba.merchantbao.legacy.controller: info
 
 merchant:
+  id:
+    # Single-instance default. Concurrent instances sharing a database need distinct worker IDs.
+    worker-id: ${MERCHANT_ID_WORKER_ID:0}
   openapi:
     enabled: true
   jwt:
-    # 设置jwt签名加密时使用的秘钥
-    admin-secret-key: itcast
+    admin-secret-key: ${merchant.auth.jwt.merchant-staff-secret-base64}
     # 设置jwt过期时间
     admin-ttl: 7200000
     # 设置前端传递过来的令牌名称
     admin-token-name: token
-    user-secret-key: itheima
+    user-secret-key: ${merchant.auth.jwt.consumer-secret-base64}
     user-ttl: 7200000
     user-token-name: authentication
+  auth:
+    jwt:
+      issuer: merchantbao
+      audience: api-v1
   alioss:
     endpoint:${merchant.alioss.endpoint}
     access-key-id:${merchant.alioss.access-key-id}

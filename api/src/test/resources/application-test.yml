@@ -11,6 +11,15 @@ spring:
     locations: classpath:db/migration,classpath:db/seed/common,classpath:db/seed/nonprod
 
 merchant:
+  auth:
+    jwt:
+      # Public test-only keys. Never use these values for development or deployment.
+      merchant-staff-secret-base64: QUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUE=
+      consumer-secret-base64: QkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkI=
+      issuer: merchantbao
+      audience: api-v1
+  id:
+    worker-id: 1023
   scheduling:
     enabled: false
   datasource:

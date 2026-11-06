@@ -13,6 +13,39 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class RuntimeConfigurationTest {
     @Test
+    void jwtProfilesUseOneSourceWithoutDevelopmentFallbackOrComposeSecrets() throws Exception {
+        var loader = new YamlPropertySourceLoader();
+        var base = loader.load("base", new ClassPathResource("application.yml")).getFirst();
+        var test = loader.load("test", new ClassPathResource("application-test.yml")).getFirst();
+        for (String path : new String[]{"src/main/resources/application-prod.yml", "src/main/resources/application-prod.yml.example"}) {
+            var prod = loader.load("prod", new FileSystemResource(path)).getFirst();
+            assertThat(prod.getProperty("merchant.auth.jwt.merchant-staff-secret-base64")).isEqualTo("${ADMIN_JWT_SECRET}");
+            assertThat(prod.getProperty("merchant.auth.jwt.consumer-secret-base64")).isEqualTo("${USER_JWT_SECRET}");
+        }
+        assertThat(base.getProperty("merchant.jwt.admin-secret-key")).isEqualTo("${merchant.auth.jwt.merchant-staff-secret-base64}");
+        assertThat(base.getProperty("merchant.jwt.user-secret-key")).isEqualTo("${merchant.auth.jwt.consumer-secret-base64}");
+        assertThat(base.getProperty("merchant.auth.jwt.merchant-staff-secret-base64")).isNull();
+        assertThat(base.getProperty("merchant.auth.jwt.consumer-secret-base64")).isNull();
+        assertThat(base.getProperty("merchant.jwt.admin-token-name")).isEqualTo("token");
+        assertThat(base.getProperty("merchant.jwt.user-token-name")).isEqualTo("authentication");
+        var properties = new com.gba.merchantbao.auth.config.AuthJwtProperties(
+                test.getProperty("merchant.auth.jwt.merchant-staff-secret-base64").toString(),
+                test.getProperty("merchant.auth.jwt.consumer-secret-base64").toString(), "merchantbao", "api-v1");
+        assertThat(com.gba.merchantbao.auth.config.AuthJwtKeyMaterial.validate(properties)).isNotNull();
+        assertThat(Files.readString(Path.of("../docker-compose.yml"))).doesNotContain("JWT", "jwt", "services.app");
+        for (String path : new String[]{"../.env.example", "../.env"}) {
+            if (Files.exists(Path.of(path))) {
+                // Never include the actual .env contents in an assertion failure.
+                boolean hasJwt = Files.readString(Path.of(path)).toLowerCase(java.util.Locale.ROOT).contains("jwt");
+                assertThat(hasJwt).as("root dev env must contain middleware settings only").isFalse();
+            }
+        }
+        var compose = loader.load("prod-compose", new FileSystemResource("docs/prod-profile/opt/gba/docker-compose.yml")).getFirst();
+        assertThat(compose.getProperty("services.app.environment.ADMIN_JWT_SECRET")).isEqualTo("${ADMIN_JWT_SECRET:?Required}");
+        assertThat(compose.getProperty("services.app.environment.USER_JWT_SECRET")).isEqualTo("${USER_JWT_SECRET:?Required}");
+    }
+
+    @Test
     void productionSeparatesMigrationCredentialsAndPackagesTheJarInJava21Image() throws Exception {
         var compose = new YamlPropertySourceLoader().load("compose", new FileSystemResource(
                 "docs/prod-profile/opt/gba/docker-compose.yml")).getFirst();

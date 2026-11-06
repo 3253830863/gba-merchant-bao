@@ -1,0 +1,1633 @@
+openapi: 3.1.0
+info:
+  title: Merchant Assistant API
+  description: 认证实现快照：9 操作。Bearer access 或 refresh body；所有响应 no-store。生产首员工、真实短信及前端另行交付。
+  version: v1
+servers:
+- url: /
+tags:
+- name: auth-v1
+  description: "Stateless auth; responses use Cache-Control: no-store. Errors: 400/10001\
+    \ or 11002, 401/10002 or 11001, 403/10003, 404/10004, 409/10009, 429/11003 with\
+    \ Retry-After, 503/11501 or 11502. IDs are strings and times are UTC."
+paths:
+  /api/v1/stores/{storeSlug}/auth/sms-codes:
+    post:
+      tags:
+      - auth-v1
+      summary: 发送 LOGIN 验证码
+      description: 仅 dev mock 且显式打开时返回 debugCode；300 秒有效。生产短信 disabled 返回 503/11502。
+      operationId: sendLoginSms
+      parameters:
+      - name: storeSlug
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Sms"
+        required: true
+      responses:
+        "200":
+          description: OK
+          headers:
+            X-Request-Id:
+              description: 与 envelope.requestId 相同
+              schema:
+                type: string
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseSmsResult"
+        "429":
+          description: 11003 限流
+          headers:
+            X-Request-Id:
+              description: 与 envelope.requestId 相同
+              schema:
+                type: string
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+            Retry-After:
+              description: 剩余窗口秒数
+              schema:
+                type: integer
+                format: int32
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorEnvelope"
+        "409":
+          description: 10009 员工标识冲突
+          headers:
+            X-Request-Id:
+              description: 与 envelope.requestId 相同
+              schema:
+                type: string
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorEnvelope"
+        "400":
+          description: 10001 参数无效；11002 验证码无效
+          headers:
+            X-Request-Id:
+              description: 与 envelope.requestId 相同
+              schema:
+                type: string
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorEnvelope"
+        "401":
+          description: 10002 会话无效；11001 凭证无效
+          headers:
+            X-Request-Id:
+              description: 与 envelope.requestId 相同
+              schema:
+                type: string
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorEnvelope"
+        "500":
+          description: 10500 非预期错误
+          headers:
+            X-Request-Id:
+              description: 与 envelope.requestId 相同
+              schema:
+                type: string
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorEnvelope"
+        "403":
+          description: 10003 角色越权
+          headers:
+            X-Request-Id:
+              description: 与 envelope.requestId 相同
+              schema:
+                type: string
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorEnvelope"
+        "404":
+          description: 10004 资源不存在或越界
+          headers:
+            X-Request-Id:
+              description: 与 envelope.requestId 相同
+              schema:
+                type: string
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorEnvelope"
+        "503":
+          description: 11501 依赖不可用；11502 短信 disabled/发送失败
+          headers:
+            X-Request-Id:
+              description: 与 envelope.requestId 相同
+              schema:
+                type: string
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorEnvelope"
+  /api/v1/stores/{storeSlug}/auth/consumer/login:
+    post:
+      tags:
+      - auth-v1
+      summary: 消费者短信登录，首次自动建号
+      operationId: consumerLogin
+      parameters:
+      - name: storeSlug
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ConsumerLogin"
+        required: true
+      responses:
+        "200":
+          description: OK
+          headers:
+            X-Request-Id:
+              description: 与 envelope.requestId 相同
+              schema:
+                type: string
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseTokens"
+        "429":
+          description: 11003 限流
+          headers:
+            X-Request-Id:
+              description: 与 envelope.requestId 相同
+              schema:
+                type: string
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+            Retry-After:
+              description: 剩余窗口秒数
+              schema:
+                type: integer
+                format: int32
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorEnvelope"
+        "409":
+          description: 10009 员工标识冲突
+          headers:
+            X-Request-Id:
+              description: 与 envelope.requestId 相同
+              schema:
+                type: string
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorEnvelope"
+        "400":
+          description: 10001 参数无效；11002 验证码无效
+          headers:
+            X-Request-Id:
+              description: 与 envelope.requestId 相同
+              schema:
+                type: string
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorEnvelope"
+        "401":
+          description: 10002 会话无效；11001 凭证无效
+          headers:
+            X-Request-Id:
+              description: 与 envelope.requestId 相同
+              schema:
+                type: string
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorEnvelope"
+        "500":
+          description: 10500 非预期错误
+          headers:
+            X-Request-Id:
+              description: 与 envelope.requestId 相同
+              schema:
+                type: string
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorEnvelope"
+        "403":
+          description: 10003 角色越权
+          headers:
+            X-Request-Id:
+              description: 与 envelope.requestId 相同
+              schema:
+                type: string
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorEnvelope"
+        "404":
+          description: 10004 资源不存在或越界
+          headers:
+            X-Request-Id:
+              description: 与 envelope.requestId 相同
+              schema:
+                type: string
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorEnvelope"
+        "503":
+          description: 11501 依赖不可用；11502 短信 disabled/发送失败
+          headers:
+            X-Request-Id:
+              description: 与 envelope.requestId 相同
+              schema:
+                type: string
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorEnvelope"
+  /api/v1/staff-accounts:
+    post:
+      tags:
+      - auth-v1
+      summary: 员工受控开通
+      operationId: createStaffAccount
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StaffCreate"
+        required: true
+      responses:
+        "201":
+          description: "Created; Location: /api/v1/staff-accounts/{accountId}"
+          headers:
+            Location:
+              description: "/api/v1/staff-accounts/{accountId}"
+              schema:
+                type: string
+            X-Request-Id:
+              description: 与 envelope.requestId 相同
+              schema:
+                type: string
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponseAccountView"
+        "429":
+          description: 11003 限流
+          headers:
+            X-Request-Id:
+              description: 与 envelope.requestId 相同
+              schema:
+                type: string
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+            Retry-After:
+              description: 剩余窗口秒数
+              schema:
+                type: integer
+                format: int32
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorEnvelope"
+        "409":
+          description: 10009 员工标识冲突
+          headers:
+            X-Request-Id:
+              description: 与 envelope.requestId 相同
+              schema:
+                type: string
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorEnvelope"
+        "400":
+          description: 10001 参数无效；11002 验证码无效
+          headers:
+            X-Request-Id:
+              description: 与 envelope.requestId 相同
+              schema:
+                type: string
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorEnvelope"
+        "401":
+          description: 10002 会话无效；11001 凭证无效
+          headers:
+            X-Request-Id:
+              description: 与 envelope.requestId 相同
+              schema:
+                type: string
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorEnvelope"
+        "500":
+          description: 10500 非预期错误
+          headers:
+            X-Request-Id:
+              description: 与 envelope.requestId 相同
+              schema:
+                type: string
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorEnvelope"
+        "403":
+          description: 10003 角色越权
+          headers:
+            X-Request-Id:
+              description: 与 envelope.requestId 相同
+              schema:
+                type: string
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorEnvelope"
+        "404":
+          description: 10004 资源不存在或越界
+          headers:
+            X-Request-Id:
+              description: 与 envelope.requestId 相同
+              schema:
+                type: string
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorEnvelope"
+        "503":
+          description: 11501 依赖不可用；11502 短信 disabled/发送失败
+          headers:
+            X-Request-Id:
+              description: 与 envelope.requestId 相同
+              schema:
+                type: string
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorEnvelope"
+      security:
+      - bearerAuth: []
+  /api/v1/auth/staff/login:
+    post:
+      tags:
+      - auth-v1
+      summary: 员工密码登录
+      operationId: staffLogin
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StaffLogin"
+        required: true
+      responses:
+        "200":
+          description: OK
+          headers:
+            X-Request-Id:
+              description: 与 envelope.requestId 相同
+              schema:
+                type: string
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseTokens"
+        "429":
+          description: 11003 限流
+          headers:
+            X-Request-Id:
+              description: 与 envelope.requestId 相同
+              schema:
+                type: string
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+            Retry-After:
+              description: 剩余窗口秒数
+              schema:
+                type: integer
+                format: int32
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorEnvelope"
+        "409":
+          description: 10009 员工标识冲突
+          headers:
+            X-Request-Id:
+              description: 与 envelope.requestId 相同
+              schema:
+                type: string
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorEnvelope"
+        "400":
+          description: 10001 参数无效；11002 验证码无效
+          headers:
+            X-Request-Id:
+              description: 与 envelope.requestId 相同
+              schema:
+                type: string
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorEnvelope"
+        "401":
+          description: 10002 会话无效；11001 凭证无效
+          headers:
+            X-Request-Id:
+              description: 与 envelope.requestId 相同
+              schema:
+                type: string
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorEnvelope"
+        "500":
+          description: 10500 非预期错误
+          headers:
+            X-Request-Id:
+              description: 与 envelope.requestId 相同
+              schema:
+                type: string
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorEnvelope"
+        "403":
+          description: 10003 角色越权
+          headers:
+            X-Request-Id:
+              description: 与 envelope.requestId 相同
+              schema:
+                type: string
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorEnvelope"
+        "404":
+          description: 10004 资源不存在或越界
+          headers:
+            X-Request-Id:
+              description: 与 envelope.requestId 相同
+              schema:
+                type: string
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorEnvelope"
+        "503":
+          description: 11501 依赖不可用；11502 短信 disabled/发送失败
+          headers:
+            X-Request-Id:
+              description: 与 envelope.requestId 相同
+              schema:
+                type: string
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorEnvelope"
+  /api/v1/auth/refresh:
+    post:
+      tags:
+      - auth-v1
+      summary: 轮换 refresh
+      description: 凭 refresh body 验证；Authorization 即使无效也不阻断。requestId 为 UUID，同次重试必须复用。
+      operationId: refreshAuth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Refresh"
+        required: true
+      responses:
+        "200":
+          description: OK
+          headers:
+            X-Request-Id:
+              description: 与 envelope.requestId 相同
+              schema:
+                type: string
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseTokens"
+        "429":
+          description: 11003 限流
+          headers:
+            X-Request-Id:
+              description: 与 envelope.requestId 相同
+              schema:
+                type: string
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+            Retry-After:
+              description: 剩余窗口秒数
+              schema:
+                type: integer
+                format: int32
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorEnvelope"
+        "409":
+          description: 10009 员工标识冲突
+          headers:
+            X-Request-Id:
+              description: 与 envelope.requestId 相同
+              schema:
+                type: string
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorEnvelope"
+        "400":
+          description: 10001 参数无效；11002 验证码无效
+          headers:
+            X-Request-Id:
+              description: 与 envelope.requestId 相同
+              schema:
+                type: string
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorEnvelope"
+        "401":
+          description: 10002 会话无效；11001 凭证无效
+          headers:
+            X-Request-Id:
+              description: 与 envelope.requestId 相同
+              schema:
+                type: string
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorEnvelope"
+        "500":
+          description: 10500 非预期错误
+          headers:
+            X-Request-Id:
+              description: 与 envelope.requestId 相同
+              schema:
+                type: string
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorEnvelope"
+        "403":
+          description: 10003 角色越权
+          headers:
+            X-Request-Id:
+              description: 与 envelope.requestId 相同
+              schema:
+                type: string
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorEnvelope"
+        "404":
+          description: 10004 资源不存在或越界
+          headers:
+            X-Request-Id:
+              description: 与 envelope.requestId 相同
+              schema:
+                type: string
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorEnvelope"
+        "503":
+          description: 11501 依赖不可用；11502 短信 disabled/发送失败
+          headers:
+            X-Request-Id:
+              description: 与 envelope.requestId 相同
+              schema:
+                type: string
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorEnvelope"
+  /api/v1/auth/logout:
+    post:
+      tags:
+      - auth-v1
+      summary: 撤销单个会话
+      description: 有效未过期 Bearer 或 body 中已知 refresh；两者有效时须同 sid。重复退出 200。
+      operationId: logoutAuth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Logout"
+      responses:
+        "200":
+          description: OK
+          headers:
+            X-Request-Id:
+              description: 与 envelope.requestId 相同
+              schema:
+                type: string
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseVoid"
+        "429":
+          description: 11003 限流
+          headers:
+            X-Request-Id:
+              description: 与 envelope.requestId 相同
+              schema:
+                type: string
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+            Retry-After:
+              description: 剩余窗口秒数
+              schema:
+                type: integer
+                format: int32
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorEnvelope"
+        "409":
+          description: 10009 员工标识冲突
+          headers:
+            X-Request-Id:
+              description: 与 envelope.requestId 相同
+              schema:
+                type: string
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorEnvelope"
+        "400":
+          description: 10001 参数无效；11002 验证码无效
+          headers:
+            X-Request-Id:
+              description: 与 envelope.requestId 相同
+              schema:
+                type: string
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorEnvelope"
+        "401":
+          description: 10002 会话无效；11001 凭证无效
+          headers:
+            X-Request-Id:
+              description: 与 envelope.requestId 相同
+              schema:
+                type: string
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorEnvelope"
+        "500":
+          description: 10500 非预期错误
+          headers:
+            X-Request-Id:
+              description: 与 envelope.requestId 相同
+              schema:
+                type: string
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorEnvelope"
+        "403":
+          description: 10003 角色越权
+          headers:
+            X-Request-Id:
+              description: 与 envelope.requestId 相同
+              schema:
+                type: string
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorEnvelope"
+        "404":
+          description: 10004 资源不存在或越界
+          headers:
+            X-Request-Id:
+              description: 与 envelope.requestId 相同
+              schema:
+                type: string
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorEnvelope"
+        "503":
+          description: 11501 依赖不可用；11502 短信 disabled/发送失败
+          headers:
+            X-Request-Id:
+              description: 与 envelope.requestId 相同
+              schema:
+                type: string
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorEnvelope"
+  /api/v1/staff-accounts/{accountId}:
+    get:
+      tags:
+      - auth-v1
+      summary: 同租户员工
+      operationId: getStaffAccount
+      parameters:
+      - name: accountId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          description: OK
+          headers:
+            X-Request-Id:
+              description: 与 envelope.requestId 相同
+              schema:
+                type: string
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseAccountView"
+        "429":
+          description: 11003 限流
+          headers:
+            X-Request-Id:
+              description: 与 envelope.requestId 相同
+              schema:
+                type: string
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+            Retry-After:
+              description: 剩余窗口秒数
+              schema:
+                type: integer
+                format: int32
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorEnvelope"
+        "409":
+          description: 10009 员工标识冲突
+          headers:
+            X-Request-Id:
+              description: 与 envelope.requestId 相同
+              schema:
+                type: string
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorEnvelope"
+        "400":
+          description: 10001 参数无效；11002 验证码无效
+          headers:
+            X-Request-Id:
+              description: 与 envelope.requestId 相同
+              schema:
+                type: string
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorEnvelope"
+        "401":
+          description: 10002 会话无效；11001 凭证无效
+          headers:
+            X-Request-Id:
+              description: 与 envelope.requestId 相同
+              schema:
+                type: string
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorEnvelope"
+        "500":
+          description: 10500 非预期错误
+          headers:
+            X-Request-Id:
+              description: 与 envelope.requestId 相同
+              schema:
+                type: string
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorEnvelope"
+        "403":
+          description: 10003 角色越权
+          headers:
+            X-Request-Id:
+              description: 与 envelope.requestId 相同
+              schema:
+                type: string
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorEnvelope"
+        "404":
+          description: 10004 资源不存在或越界
+          headers:
+            X-Request-Id:
+              description: 与 envelope.requestId 相同
+              schema:
+                type: string
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorEnvelope"
+        "503":
+          description: 11501 依赖不可用；11502 短信 disabled/发送失败
+          headers:
+            X-Request-Id:
+              description: 与 envelope.requestId 相同
+              schema:
+                type: string
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorEnvelope"
+      security:
+      - bearerAuth: []
+  /api/v1/consumer-accounts/{accountId}:
+    get:
+      tags:
+      - auth-v1
+      summary: 同租户消费者本人
+      operationId: getConsumerAccount
+      parameters:
+      - name: accountId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          description: OK
+          headers:
+            X-Request-Id:
+              description: 与 envelope.requestId 相同
+              schema:
+                type: string
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseAccountView"
+        "429":
+          description: 11003 限流
+          headers:
+            X-Request-Id:
+              description: 与 envelope.requestId 相同
+              schema:
+                type: string
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+            Retry-After:
+              description: 剩余窗口秒数
+              schema:
+                type: integer
+                format: int32
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorEnvelope"
+        "409":
+          description: 10009 员工标识冲突
+          headers:
+            X-Request-Id:
+              description: 与 envelope.requestId 相同
+              schema:
+                type: string
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorEnvelope"
+        "400":
+          description: 10001 参数无效；11002 验证码无效
+          headers:
+            X-Request-Id:
+              description: 与 envelope.requestId 相同
+              schema:
+                type: string
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorEnvelope"
+        "401":
+          description: 10002 会话无效；11001 凭证无效
+          headers:
+            X-Request-Id:
+              description: 与 envelope.requestId 相同
+              schema:
+                type: string
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorEnvelope"
+        "500":
+          description: 10500 非预期错误
+          headers:
+            X-Request-Id:
+              description: 与 envelope.requestId 相同
+              schema:
+                type: string
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorEnvelope"
+        "403":
+          description: 10003 角色越权
+          headers:
+            X-Request-Id:
+              description: 与 envelope.requestId 相同
+              schema:
+                type: string
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorEnvelope"
+        "404":
+          description: 10004 资源不存在或越界
+          headers:
+            X-Request-Id:
+              description: 与 envelope.requestId 相同
+              schema:
+                type: string
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorEnvelope"
+        "503":
+          description: 11501 依赖不可用；11502 短信 disabled/发送失败
+          headers:
+            X-Request-Id:
+              description: 与 envelope.requestId 相同
+              schema:
+                type: string
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorEnvelope"
+      security:
+      - bearerAuth: []
+  /api/v1/auth/me:
+    get:
+      tags:
+      - auth-v1
+      summary: 当前主体，不推进 idle
+      operationId: authMe
+      responses:
+        "200":
+          description: OK
+          headers:
+            X-Request-Id:
+              description: 与 envelope.requestId 相同
+              schema:
+                type: string
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponsePrincipalView"
+        "429":
+          description: 11003 限流
+          headers:
+            X-Request-Id:
+              description: 与 envelope.requestId 相同
+              schema:
+                type: string
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+            Retry-After:
+              description: 剩余窗口秒数
+              schema:
+                type: integer
+                format: int32
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorEnvelope"
+        "409":
+          description: 10009 员工标识冲突
+          headers:
+            X-Request-Id:
+              description: 与 envelope.requestId 相同
+              schema:
+                type: string
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorEnvelope"
+        "400":
+          description: 10001 参数无效；11002 验证码无效
+          headers:
+            X-Request-Id:
+              description: 与 envelope.requestId 相同
+              schema:
+                type: string
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorEnvelope"
+        "401":
+          description: 10002 会话无效；11001 凭证无效
+          headers:
+            X-Request-Id:
+              description: 与 envelope.requestId 相同
+              schema:
+                type: string
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorEnvelope"
+        "500":
+          description: 10500 非预期错误
+          headers:
+            X-Request-Id:
+              description: 与 envelope.requestId 相同
+              schema:
+                type: string
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorEnvelope"
+        "403":
+          description: 10003 角色越权
+          headers:
+            X-Request-Id:
+              description: 与 envelope.requestId 相同
+              schema:
+                type: string
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorEnvelope"
+        "404":
+          description: 10004 资源不存在或越界
+          headers:
+            X-Request-Id:
+              description: 与 envelope.requestId 相同
+              schema:
+                type: string
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorEnvelope"
+        "503":
+          description: 11501 依赖不可用；11502 短信 disabled/发送失败
+          headers:
+            X-Request-Id:
+              description: 与 envelope.requestId 相同
+              schema:
+                type: string
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorEnvelope"
+      security:
+      - bearerAuth: []
+components:
+  schemas:
+    Sms:
+      type: object
+      properties:
+        phone:
+          type: string
+          minLength: 1
+      required:
+      - phone
+    ApiResponseSmsResult:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        message:
+          type: string
+        data:
+          $ref: "#/components/schemas/SmsResult"
+        requestId:
+          type: string
+    SmsResult:
+      type: object
+      properties:
+        expiresIn:
+          type: integer
+          format: int32
+        retryAfter:
+          type: integer
+          format: int32
+        debugCode:
+          type: string
+    ConsumerLogin:
+      type: object
+      properties:
+        phone:
+          type: string
+          minLength: 1
+        code:
+          type: string
+          pattern: "[0-9]{6}"
+      required:
+      - code
+      - phone
+    ApiResponseTokens:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        message:
+          type: string
+        data:
+          $ref: "#/components/schemas/Tokens"
+        requestId:
+          type: string
+    PrincipalView:
+      type: object
+      properties:
+        accountId:
+          type: string
+        merchantId:
+          type: string
+        merchantCode:
+          type: string
+        role:
+          type: string
+          enum:
+          - MERCHANT_STAFF
+          - CONSUMER
+        displayName:
+          type: string
+        phoneMasked:
+          type: string
+    Tokens:
+      type: object
+      properties:
+        accessToken:
+          type: string
+        refreshToken:
+          type: string
+        tokenType:
+          type: string
+        expiresIn:
+          type: integer
+          format: int64
+        expiresAt:
+          type: string
+          format: date-time
+        refreshExpiresAt:
+          type: string
+          format: date-time
+        principal:
+          $ref: "#/components/schemas/PrincipalView"
+    StaffCreate:
+      type: object
+      properties:
+        username:
+          type: string
+          minLength: 1
+        phone:
+          type: string
+          minLength: 1
+        displayName:
+          type: string
+          maxLength: 64
+          minLength: 0
+        password:
+          type: string
+          minLength: 1
+      required:
+      - displayName
+      - password
+      - phone
+      - username
+    AccountView:
+      type: object
+      properties:
+        accountId:
+          type: string
+        merchantCode:
+          type: string
+        username:
+          type: string
+        displayName:
+          type: string
+        phoneMasked:
+          type: string
+        role:
+          type: string
+          enum:
+          - MERCHANT_STAFF
+          - CONSUMER
+        status:
+          type: string
+    ApiResponseAccountView:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        message:
+          type: string
+        data:
+          $ref: "#/components/schemas/AccountView"
+        requestId:
+          type: string
+    StaffLogin:
+      type: object
+      properties:
+        merchantCode:
+          type: string
+          minLength: 1
+        identifier:
+          type: string
+          minLength: 1
+        password:
+          type: string
+          minLength: 1
+      required:
+      - identifier
+      - merchantCode
+      - password
+    Refresh:
+      type: object
+      properties:
+        refreshToken:
+          type: string
+          minLength: 1
+        refreshRequestId:
+          type: string
+          minLength: 1
+      required:
+      - refreshRequestId
+      - refreshToken
+    Logout:
+      type: object
+      properties:
+        refreshToken:
+          type: string
+    ApiResponseVoid:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        message:
+          type: string
+        data: {}
+        requestId:
+          type: string
+    ApiResponsePrincipalView:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        message:
+          type: string
+        data:
+          $ref: "#/components/schemas/PrincipalView"
+        requestId:
+          type: string
+    AuthErrorEnvelope:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        message:
+          type: string
+        data: {}
+        requestId:
+          type: string
+  securitySchemes:
+    bearerAuth:
+      type: http
+      in: header
+      scheme: bearer
+      bearerFormat: JWT

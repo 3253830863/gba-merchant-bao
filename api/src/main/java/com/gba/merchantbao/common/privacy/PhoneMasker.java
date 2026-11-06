@@ -10,6 +10,9 @@ public final class PhoneMasker {
             return phone;
         }
         String normalized = phone.trim();
+        if (normalized.startsWith("+86") && normalized.length() == 14) {
+            normalized = normalized.substring(3);
+        }
         if (normalized.length() <= 7) {
             return "***";
         }

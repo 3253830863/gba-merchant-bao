@@ -58,44 +58,38 @@
 - Excel 报表导出
 
 ## 🚀 启动后端
-###### ai
-* ai在后端api根目录下自动运行 ./mvnw spring-boot:run -Dspring-boot.run.profiles=dev
 
-###### dev profile
-* 在dev profile是先运行docker-compose.yml, 然后再IDEA激活dev profile, 然后再启动后端, dev数据库账号自动执行flyway, 然后就可以断点调试
+开发使用 JDK 21、Maven 和 Docker Desktop。已有配置请保留，首次配置才复制示例（仓库根 PowerShell）：
 
-    1. 数据库+中间件
-        1. 打开docker desktop
-        2. 打开仓库根目录
-            - .env.example 改为.env
-            - 修改.env的密码
-        3. Github根目录运行 docker compose up -d
-            1. 停止就点docker desktop
-        4. 运行带profile标记的中间件 docker compose --profile * up -d # 某个模块中间件
+```powershell
+if (-not (Test-Path .env)) { Copy-Item .env.example .env }
+if (-not (Test-Path api/src/main/resources/application-dev.yml)) {
+    Copy-Item api/src/main/resources/application-dev.yml.example api/src/main/resources/application-dev.yml
+}
+docker compose up -d
+```
 
-    2. 激活application-dev.yml
-        1. IDEA打开项目
-        2. 打开api\src\main\resources\application.yml
-            1. ~~dev前后端联调开发, test自动化测试, prod上服务器~~
-        3. Run Configuration 的 Active profiles 填 `dev` 
-        4. 图片![IDEA-dev激活配置](https://github.com/user-attachments/assets/fe04c683-44f6-4ffa-a7f9-518bf7ba67fc)
+同步 `.env` 与实际 dev YAML 中的数据库密码和端口。gba-dev 已有 MySQL/Redis，`up -d` 复用已有卷，
+登录不需要额外 Redis 或 login profile。Compose 配置变化后使用 `up -d` 应用；`restart` 只重启现有进程。
 
-    3. 依赖配置
-        1. application-dev.yml.example 改为 application-dev.yml
-            - <u>修改application-dev.yml的配置</u>
-        2. 生成jwt密钥
-            1. 任意打开本地git bash
-                ```bash
-                # 生成2个, 1个给root, 1个给user
-                openssl rand -base64 32
-                ```     
-            2. 打开application-dev.yml
-            3. jwt密钥放到jwt​ : secret : ​
+在本机有 OpenSSL 的终端运行两次，分别生成员工和消费者 JWT 密钥：
 
-    4. 数据库配置
-        1. 初次创建数据库时, 打开api\src\main\resources\application.yml
-            1. ~~数据库 表从V1开始执行~~
-        2. 若像我有 未迁移前的 数据库后,
-            1. baseline-on-migrate设置为true
-            2. baseline-version = 1
-            3. 假装库已经执行V1, 从V2开始
+```bash
+openssl rand -base64 32
+openssl rand -base64 32
+```
+
+将结果分别写入实际 dev YAML 的 `merchant.auth.jwt.merchant-staff-secret-base64` 和
+`merchant.auth.jwt.consumer-secret-base64`，保留其他设置。员工是 MERCHANT_STAFF，与 MySQL root
+无关；两把密钥必须不同且各解码至少 32 字节。已有合规值可保留，真实值只放被忽略的实际 YAML，
+不要放示例、根 `.env` 或 Compose；旧 `merchant.jwt` 自动桥接。修改 YAML 后重启 API，换密钥后重新登录。
+
+IDEA 运行 MerchantApplication：JDK 21、工作目录 `api`、Active profiles 为 `dev`；或在 api 目录执行：
+
+```powershell
+mvn spring-boot:run '-Dspring-boot.run.arguments=--spring.profiles.active=dev'
+```
+
+空库自动迁移 V1→V4；未登记的历史非空库须按 [显式 baseline 手册](api/docs/deployment/flyway-baseline.md)
+先核验和备份，保持自动 baseline 关闭。详细配置、已有卷和凭据边界见
+[本地持久联调](api/docs/deployment/local-development.md)。健康检查为 http://localhost:8080/api/v1/health 。

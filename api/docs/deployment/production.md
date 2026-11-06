@@ -27,7 +27,7 @@ if (-not (Test-Path "$productionRoot/.env")) {
 docker compose -f "$productionRoot/docker-compose.yml" --env-file "$productionRoot/.env" --profile deploy config --quiet
 ```
 
-实际 .env 中 MYSQL_ROOT_PASSWORD、FLYWAY_PASSWORD、APP_DB_PASSWORD、REDIS_PASSWORD 按当前约定初始均填 `123456`，JWT 两个 secret 填独立值。示例保留占位符；实际 .env 继续忽略。APP_VERSION 使用本次唯一版本，避免覆盖旧镜像，未来实际对外上线前处理凭据轮换。
+实际 .env 中 MYSQL_ROOT_PASSWORD、FLYWAY_PASSWORD、APP_DB_PASSWORD、REDIS_PASSWORD 按当前约定初始均填 `123456`。JWT 的 ADMIN_JWT_SECRET / USER_JWT_SECRET 分别填写两次 `openssl rand -base64 32` 生成的独立值（各解码至少 32 字节）；ADMIN 指 MERCHANT_STAFF，与 MySQL root 无关。prod 不回落 dev 密钥；缺失、占位、非法编码、过短或相同都会启动失败，更换后新旧会话需重新登录。示例保留占位符；实际 .env 继续忽略。APP_VERSION 使用本次唯一版本，避免覆盖旧镜像，未来实际对外上线前处理凭据轮换。
 
 MySQL 空卷首次创建库 gba、flyway_deploy（仅 gba.* 迁移权限）和 app（仅 SELECT/INSERT/UPDATE/DELETE）。已有数据卷不会重跑 init，也不会因更改 .env 自动修改 MySQL 账号；需管理员单独变更并同步配置。
 Redis 开启 AOF 和 requirepass，健康检查 REDISCLI_AUTH、app 读取同一 REDIS_PASSWORD。中间件不发布主机端口，应用连接 mysql:3306、redis:6379。

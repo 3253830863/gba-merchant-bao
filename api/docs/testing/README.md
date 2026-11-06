@@ -24,7 +24,7 @@ Surefire 的单元和契约测试报告位于 `api/target/surefire-reports`，Fa
 
 Maven 的 Surefire、Failsafe 会将 `LOG_DIR` 设置为 `api/target/test-logs` 的绝对路径，因此测试日志不会追加到开发或生产日志中。执行 Maven 的 `clean` 阶段时，这些测试日志会被清理。应用运行时通过 `logging.file.path` 或 `LOG_DIR` 配置日志位置：工作目录设为 `api/` 时，开发日志默认写入 `api/.runtime/logs`；生产环境需要将 `LOG_DIR` 指向外部可写日志目录或部署挂载目录。在 IDE 中直接运行测试时，可以通过 JVM 系统属性 `LOG_DIR` 指定输出目录。
 
-MySQL 测试覆盖空库迁移、重复迁移、租户测试数据的幂等性，以及模拟旧数据库结构的显式 baseline 和升级，并验证旧测试记录得到保留。Redis 测试使用保留的旧序列化方式和配置，通过实际断言验证字符串、哈希、列表、集合、有序集合和键操作。
+MySQL 测试覆盖空库 V1→V4、已登记 V3→V4、重复迁移不改写认证账号/旧行/历史、租户测试数据的幂等性，以及模拟旧数据库结构的显式 baseline 和升级。AuthSchemaIT 验证新账号表的非空、唯一、状态与同租户创建者约束；AuthPersistenceIT 验证真实 Mapper 索引查询、租户更新/删除边界和本人资源范围。Redis 测试保留旧序列化验证；AuthSmsRedisIT/AuthFlowIT 验证独立 StringRedisTemplate 下的挑战、限流和原子会话状态。
 
 上述测试使用构造的测试数据。生产数据库的备份、恢复演练和结构对比仍需在发布流程中单独执行，不能用这些测试替代。
 
@@ -41,12 +41,31 @@ MySQL 测试覆盖空库迁移、重复迁移、租户测试数据的幂等性�
 common 当前没有必需记录；nonprod 是 M_3C_DEMO 和 M_ISOLATION_TEST 两个稳定租户根，生产不加载。
 商品/SKU、订单、物流、知识和会话演示数据按模块增量加入 devdata，本 change 不预建模块表。
 FoundationApplicationIT 用 @Sql 加载独立的 M_FIXTURE_RUNTIME 租户，按稳定编码定位，并在 @AfterTransaction 验证事务回滚；不依赖业务表总数或空表，不清空共享种子。
+AuthPersistenceIT 另用 @Sql 显式加载 db/fixture/auth_accounts.sql，按商户编码关联两个既有租户，提供独立测试员工/消费者及跨租户同号数据；测试事务回滚后按 fixture 主键验证无残留。该 fixture 不在 Flyway seed/devdata 中，测试密码不作为 dev 演示密码。字段/索引与 Snowflake worker 配置见 [认证数据设计](../auth/data-design.md)。
 HTTP/异步测试的 fixture 无法由测试事务回滚时，必须按本用例稳定业务标识限定清理。
 
-默认 baseline-version=1 不会使空库跳过 V1；所有普通集成测试从空库按序执行 V1/V2/V3。另保留一个短小旧库接管场景，先验证非空库拒绝，再显式 baseline1 后迁移 V2/V3。
+默认 baseline-version=1 不会使空库跳过 V1；所有普通集成测试从空库按序执行 V1/V2/V3/V4。另保留一个短小旧库接管场景，先验证非空库拒绝，再显式 baseline1 后迁移 V2/V3/V4。
 ProductionInfrastructureIT 复用生产初始化脚本验证 DML/迁移权限分离、已有数据目录不重跑 init、Redis 认证和结构＋数据导出恢复；使用临时密码和可销毁实例，不连接实际生产。
 
 QA 可选择在 dev profile 环境人工验收，通过后再进入未来 prod；没有 QA 也可直接进入 prod，无 qa profile。本次没有云发布或 CI/tag 流水线。
 资源移动后务必运行 clean verify，清除 target/classes 中残留的 application-local/test 及旧 devdata SQL，再执行 Surefire 和 Failsafe。
 
 test profile 关闭旧业务定时调度（merchant.scheduling.enabled=false），HTTP 契约测试不会在整分钟后台连接中间件；dev/prod 保持原调度行为。
+
+## 认证定向验证（第 4–7 节）
+
+```powershell
+mvn -f api/pom.xml '-Dtest=AuthInputTest,AuthSmsConfigurationTest,AuthSmsRedisIT,AuthFlowIT,AuthDevManualIT,AuthContextTest,AuthCredentialTest,JsonLoggingTest,HttpClientTest,FoundationContractTest,RuntimeConfigurationTest' test
+```
+
+AuthFlowIT 使用可控时间验证消费者/员工 idle 与 absolute、active 恢复、元数据丢失、刷新加密缓存/重试/重放、并发刷新/退出、租户与本人 SQL 边界、账号停用、数据库/Redis 故障和 503 无 token。独立有效短信挑战在数据库查询屏障后并发插入，证明唯一冲突复用已提交账号；不把同挑战抢消费当成并发建号测试。
+
+AuthDevManualIT 显式启用 dev+test 与专用 namespace、动态临时容器，实际执行 [后端联调脚本](../auth/manual-verification.md) 并导出 Springdoc 到 target。它验证 devdata 重跑不覆盖 hash/status，正常 test/prod locations 排除 devdata；常规 fixture 仍只由 @Sql 提供。故障注入使用测试 spy，不停共享开发中间件。
+
+不清共享表、不 flush Redis、不恢复真实卷。容器销毁清理数据；用例仅操作自己的认证测试前缀。旧 HTTP、上下文清理与日志分流分别由 HttpClientTest、AuthContextTest、JsonLoggingTest 验证。第 9 节全量 test/clean verify 的独立结果见 [认证验收记录](../auth/verification.md)，不以定向结果替代全量验收。
+
+## 种子迁移定向验证（第 8 节）
+
+命令与维护边界见 [开发种子升级](../deployment/dev-seed-upgrade.md)。`DevSeedMigrationIT` 使用独立 MySQL 数据库与真实 Flyway 11.7.2，覆盖排序、无变化重启、显式补种保留人工修改、缺依赖/身份冲突、Spring 启动失败、并发迁移、旧租户 R/两份旧 R 的受控 repair，以及真实 mysqldump 恢复核对和 CLI 执行门槛。旧 SQL 快照只保存在 test resources 的 upgrade-history，运行期不加载。
+
+Maven 不会清除改名资源；本节定向验证前仅移除 target/classes 下两份旧名 R 和旧回调 class 的确切生成文件，不能将残留旧资源带入测试；维护脚本已执行相同检查。第 9 节 clean verify 的结果见 [认证验收记录](../auth/verification.md)。本节自动化不操作开发卷，已有 Docker Compose 开发库升级属于独立、显式维护步骤，不把定向测试通过等同于真实库已升级。
