@@ -239,9 +239,9 @@ Git Bash 可连续执行两次 `openssl rand -base64 32`，结果分别用于员
 
 ### 9. 按队友业务模块与本人 Agent 范围拆分，按真实能力就绪接入
 
-完整认领清单见 [module-roadmap.md](../../../api/docs/architecture/module-roadmap.md)，依据原始 [PRD / 设计手稿](../../../docs/initialization/设计手稿.md) 与本次确认的分工。当前 change 只交付路线；下面均为后续目标，不新增其表或中间件。
+完整认领清单见 [module-roadmap.md](../../../../api/docs/architecture/module-roadmap.md)，依据原始 [PRD / 设计手稿](../../../../docs/initialization/设计手稿.md) 与本次确认的分工。当前 change 只交付路线；下面均为后续目标，不新增其表或中间件。
 
-auth 已迁移为 controller/service/mapper 三层包结构，数据模型在 entity、请求在 dto，安全/缓存/异常等使用对应辅助包。MapperScan、XML namespace/resultType、Springdoc/ControllerAdvice、测试引用同步迁移；HTTP 契约与安全行为保持。后续商品、库存、订单、物流及 Agent 相关业务域同样使用 controller/service/mapper，按需加 entity/dto/vo，不再用 api/application/domain/infrastructure 分层。具体类职责见 [packages.md](../../../api/docs/architecture/packages.md)。
+auth 已迁移为 controller/service/mapper 三层包结构，数据模型在 entity、请求在 dto，安全/缓存/异常等使用对应辅助包。MapperScan、XML namespace/resultType、Springdoc/ControllerAdvice、测试引用同步迁移；HTTP 契约与安全行为保持。后续商品、库存、订单、物流及 Agent 相关业务域同样使用 controller/service/mapper，按需加 entity/dto/vo，不再用 api/application/domain/infrastructure 分层。具体类职责见 [packages.md](../../../../api/docs/architecture/packages.md)。
 
 | 可认领技术模块 | 负责人 | 完整模块交付 | 供 Agent 使用的真实能力 |
 | --- | --- | --- | --- |
