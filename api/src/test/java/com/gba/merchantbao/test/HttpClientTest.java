@@ -122,15 +122,15 @@ public class HttpClientTest {
     }
 
     @Test
-    void validationErrorsUsePublicEnvelopeAndRequestId() throws Exception {
+    void anonymousEchoUsesPublicUnauthorizedEnvelopeAndRequestId() throws Exception {
         mockMvc.perform(post("/api/v1/echo")
                         .header("X-Request-Id", "test-request-123")
                         .contentType("application/json")
                         .content("{\"message\":\"\"}"))
-                .andExpect(status().isBadRequest())
+                .andExpect(status().isUnauthorized())
                 .andExpect(header().string("X-Request-Id", "test-request-123"))
-                .andExpect(jsonPath("$.code").value(10001))
+                .andExpect(jsonPath("$.code").value(10002))
                 .andExpect(jsonPath("$.requestId").value("test-request-123"))
-                .andExpect(jsonPath("$.message").value("invalid argument"));
+                .andExpect(jsonPath("$.message").value("unauthorized"));
     }
 }

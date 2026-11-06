@@ -24,7 +24,7 @@ Surefire 的单元和契约测试报告位于 `api/target/surefire-reports`，Fa
 
 Maven 的 Surefire、Failsafe 会将 `LOG_DIR` 设置为 `api/target/test-logs` 的绝对路径，因此测试日志不会追加到开发或生产日志中。执行 Maven 的 `clean` 阶段时，这些测试日志会被清理。应用运行时通过 `logging.file.path` 或 `LOG_DIR` 配置日志位置：工作目录设为 `api/` 时，开发日志默认写入 `api/.runtime/logs`；生产环境需要将 `LOG_DIR` 指向外部可写日志目录或部署挂载目录。在 IDE 中直接运行测试时，可以通过 JVM 系统属性 `LOG_DIR` 指定输出目录。
 
-MySQL 测试覆盖空库 V1→V4、已登记 V3→V4、重复迁移不改写认证账号/旧行/历史、租户测试数据的幂等性，以及模拟旧数据库结构的显式 baseline 和升级。AuthSchemaIT 验证新账号表的非空、唯一、状态与同租户创建者约束；AuthPersistenceIT 验证真实 Mapper 索引查询、租户更新/删除边界和本人资源范围。Redis 测试使用保留的旧序列化方式和配置，通过实际断言验证字符串、哈希、列表、集合、有序集合和键操作；认证 Redis 会话尚未实现。
+MySQL 测试覆盖空库 V1→V4、已登记 V3→V4、重复迁移不改写认证账号/旧行/历史、租户测试数据的幂等性，以及模拟旧数据库结构的显式 baseline 和升级。AuthSchemaIT 验证新账号表的非空、唯一、状态与同租户创建者约束；AuthPersistenceIT 验证真实 Mapper 索引查询、租户更新/删除边界和本人资源范围。Redis 测试保留旧序列化验证；AuthSmsRedisIT/AuthFlowIT 验证独立 StringRedisTemplate 下的挑战、限流和原子会话状态。
 
 上述测试使用构造的测试数据。生产数据库的备份、恢复演练和结构对比仍需在发布流程中单独执行，不能用这些测试替代。
 
@@ -51,3 +51,15 @@ QA 可选择在 dev profile 环境人工验收，通过后再进入未来 prod�
 资源移动后务必运行 clean verify，清除 target/classes 中残留的 application-local/test 及旧 devdata SQL，再执行 Surefire 和 Failsafe。
 
 test profile 关闭旧业务定时调度（merchant.scheduling.enabled=false），HTTP 契约测试不会在整分钟后台连接中间件；dev/prod 保持原调度行为。
+
+## 认证定向验证（第 4–7 节）
+
+```powershell
+mvn -f api/pom.xml '-Dtest=AuthInputTest,AuthSmsConfigurationTest,AuthSmsRedisIT,AuthFlowIT,AuthDevManualIT,AuthContextTest,AuthCredentialTest,JsonLoggingTest,HttpClientTest,FoundationContractTest,RuntimeConfigurationTest' test
+```
+
+AuthFlowIT 使用可控时间验证消费者/员工 idle 与 absolute、active 恢复、元数据丢失、刷新加密缓存/重试/重放、并发刷新/退出、租户与本人 SQL 边界、账号停用、数据库/Redis 故障和 503 无 token。独立有效短信挑战在数据库查询屏障后并发插入，证明唯一冲突复用已提交账号；不把同挑战抢消费当成并发建号测试。
+
+AuthDevManualIT 显式启用 dev+test 与专用 namespace、动态临时容器，实际执行 [后端联调脚本](../auth/manual-verification.md) 并导出 Springdoc 到 target。它验证 devdata 重跑不覆盖 hash/status，正常 test/prod locations 排除 devdata；常规 fixture 仍只由 @Sql 提供。故障注入使用测试 spy，不停共享开发中间件。
+
+不清共享表、不 flush Redis、不恢复真实卷。容器销毁清理数据；用例仅操作自己的认证测试前缀。旧 HTTP、上下文清理与日志分流分别由 HttpClientTest、AuthContextTest、JsonLoggingTest 验证。第 8 节全量 test/clean verify 暂未执行，定向结果不能替代完整验收。

@@ -4,6 +4,9 @@ spring:
 
 merchant:
   auth:
+    sms:
+      provider: mock
+      expose-debug-code: true
     jwt:
       merchant-staff-secret-base64: REPLACE_WITH_MERCHANT_STAFF_BASE64_KEY
       consumer-secret-base64: REPLACE_WITH_CONSUMER_BASE64_KEY

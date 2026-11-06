@@ -26,43 +26,43 @@
 
 ## 4. 模拟短信、一次性挑战与限流
 
-- [ ] 4.1 实现手机号/merchantCode/公开 storeSlug 别名/用户名规范化和密码输入规则，手机号脱敏支持 +86；单元验证等价号码、非法号码、slug 只定位 ACTIVE 商户、无上下文拒绝、用户名无歧义、密码不 trim 且 UTF-8 超 72 字节拒绝。
-- [ ] 4.2 实现可替换 SmsSender、dev mock、test 替身和 prod disabled 模式；配置测试验证只有 dev/test 可 mock，dev 显式开关才回显 debugCode，prod mock/回显启动失败，disabled 返回 503 且不伪报发送成功。
-- [ ] 4.3 实现六位安全随机验证码、300 秒 TTL、商户/手机号/LOGIN 绑定和摘要存储，删除 REGISTER 分支及客户端 purpose 输入；Redis IT 验证跨租户/手机号、过期/重发/重放拒绝，存储无明文验证码。
-- [ ] 4.4 实现 Lua 原子校验、失败计数、第五次失效、成功一次消费与 challengeId 安全激活/清理；Redis 并发 IT 证明同验证码最多一个请求成功，发送失败不残留可用挑战且不会误删下一代挑战。
-- [ ] 4.5 实现发送冷却、手机号/IP 发送配额、登录/刷新 IP 配额与员工失败锁定，原子 TTL，429/Retry-After；验证并发超限/恢复、用户名手机号共享计数、未知账号 dummy BCrypt、伪造 X-Forwarded-For 不绕过。
-- [ ] 4.6 将 key 命名空间、类型、TTL、限流默认值及 mock 操作写入 data-design/api-design；验证新 StringRedisTemplate 与旧序列化并存，短信普通日志无原始手机号、code 或 body，不调用真实短信 SDK。
+- [x] 4.1 实现手机号/merchantCode/公开 storeSlug 别名/用户名规范化和密码输入规则，手机号脱敏支持 +86；单元验证等价号码、非法号码、slug 只定位 ACTIVE 商户、无上下文拒绝、用户名无歧义、密码不 trim 且 UTF-8 超 72 字节拒绝。
+- [x] 4.2 实现可替换 SmsSender、dev mock、test 替身和 prod disabled 模式；配置测试验证只有 dev/test 可 mock，dev 显式开关才回显 debugCode，prod mock/回显启动失败，disabled 返回 503 且不伪报发送成功。
+- [x] 4.3 实现六位安全随机验证码、300 秒 TTL、商户/手机号/LOGIN 绑定和摘要存储，删除 REGISTER 分支及客户端 purpose 输入；Redis IT 验证跨租户/手机号、过期/重发/重放拒绝，存储无明文验证码。
+- [x] 4.4 实现 Lua 原子校验、失败计数、第五次失效、成功一次消费与 challengeId 安全激活/清理；Redis 并发 IT 证明同验证码最多一个请求成功，发送失败不残留可用挑战且不会误删下一代挑战。
+- [x] 4.5 实现发送冷却、手机号/IP 发送配额、登录/刷新 IP 配额与员工失败锁定，原子 TTL，429/Retry-After；验证并发超限/恢复、用户名手机号共享计数、未知账号 dummy BCrypt、伪造 X-Forwarded-For 不绕过。
+- [x] 4.6 将 key 命名空间、类型、TTL、限流默认值及 mock 操作写入 data-design/api-design；验证新 StringRedisTemplate 与旧序列化并存，短信普通日志无原始手机号、code 或 body，不调用真实短信 SDK。
 
 ## 5. 账号用例与登录会话
 
-- [ ] 5.1 实现消费者单一 LOGIN 流程：店铺路径解析、验证后首次建号/已有账号复用、停用禁止重建；数据库 IT 覆盖独立有效挑战并发唯一冲突复用账号、同挑战重放无效、均返回 200、无注册 409；数据库失败时验证码不恢复，账号提交后 Redis 失败保留账号、503 且无双 token。
-- [ ] 5.2 实现商户员工受控开通，用服务端商户与创建者写入 BCrypt cost=12 摘要，固定员工角色；单元/数据库 IT 验证同商户创建、唯一冲突、跨租户创建关系拒绝、响应无密码/hash、原始密码不留存。
-- [ ] 5.3 实现员工商户编码+用户名/手机号+密码登录；验证两标识定位同一员工、同名跨商户隔离，未知商户/账号、错密码、账号或商户停用均返回相同 401/11001，平台管理员角色无登录入口。
-- [ ] 5.4 实现双 token 初始会话原子创建：随机独立 sid、7200 秒 access、256 位随机 opaque refresh 摘要、active/control/refresh 索引；Redis IT 验证消费者 idle7d/absolute30d、员工 idle1d/absolute7d、写入失败无任一 token、独立设备并存、无明文凭证。
-- [ ] 5.5 实现 me 与统一 logout：access 缺失/无效/过期支持 body refresh、历史已知摘要定位同 sid、双凭证不符拒绝、原子撤销 active/refresh 并清重试缓存、墓碑保留至原 absolute；IT 验证重复 200、未知/绝对过期 401、停用仍可退、其他设备/店铺/类型不变、删除失败 503、退出刷新竞争无复活。
-- [ ] 5.6 补齐账号/会话维护说明、密码交付边界与浏览器按店铺+类型 localStorage 接入契约，明确 dev/test 和短期生产及 XSS 风险；Cookie 分离存储、生产首员工、找回密码/分权/状态管理延期，核对 requirements/api-design/data-design 一致。
+- [x] 5.1 实现消费者单一 LOGIN 流程：店铺路径解析、验证后首次建号/已有账号复用、停用禁止重建；数据库 IT 覆盖独立有效挑战并发唯一冲突复用账号、同挑战重放无效、均返回 200、无注册 409；数据库失败时验证码不恢复，账号提交后 Redis 失败保留账号、503 且无双 token。
+- [x] 5.2 实现商户员工受控开通，用服务端商户与创建者写入 BCrypt cost=12 摘要，固定员工角色；单元/数据库 IT 验证同商户创建、唯一冲突、跨租户创建关系拒绝、响应无密码/hash、原始密码不留存。
+- [x] 5.3 实现员工商户编码+用户名/手机号+密码登录；验证两标识定位同一员工、同名跨商户隔离，未知商户/账号、错密码、账号或商户停用均返回相同 401/11001，平台管理员角色无登录入口。
+- [x] 5.4 实现双 token 初始会话原子创建：随机独立 sid、7200 秒 access、256 位随机 opaque refresh 摘要、active/control/refresh 索引；Redis IT 验证消费者 idle7d/absolute30d、员工 idle1d/absolute7d、写入失败无任一 token、独立设备并存、无明文凭证。
+- [x] 5.5 实现 me 与统一 logout：access 缺失/无效/过期支持 body refresh、历史已知摘要定位同 sid、双凭证不符拒绝、原子撤销 active/refresh 并清重试缓存、墓碑保留至原 absolute；IT 验证重复 200、未知/绝对过期 401、停用仍可退、其他设备/店铺/类型不变、删除失败 503、退出刷新竞争无复活。
+- [x] 5.6 补齐账号/会话维护说明、密码交付边界与浏览器按店铺+类型 localStorage 接入契约，明确 dev/test 和短期生产及 XSS 风险；Cookie 分离存储、生产首员工、找回密码/分权/状态管理延期，核对 requirements/api-design/data-design 一致。
 
-- [ ] 5.7 实现统一 refresh 的当前摘要/generation 原子轮换与 ACTIVE 状态检查，保持 original absolute；IT 用可控时间验证 access 两小时、idle7d/1d、active 缺失恢复、30d/7d 绝对截止、主体停用/元数据丢失拒绝与故障 503。
-- [ ] 5.8 实现 refreshRequestId 默认 10 秒幂等与 AES-256-GCM 短期响应缓存，角色 key 经 HKDF 域分离派生、AAD 绑定 sid/generation/requestId/absoluteAt，随机 nonce、无明文 token；验证同旧摘要+同 requestId+当前代才同结果、重试不 touch、过窗/异 requestId/旧代真实重放撤销当前 family、未知随机值不误撤销、缓存篡改/过期和退出后不可取回。
-- [ ] 5.9 明确并实现 idle touch 策略：成功完成允许的私有业务操作或必要 refresh 可推进，失败/匿名/me/已定义后台轮询不 touch，期限 capped absolute；原子核验 control 未撤销与 active 存在再更新，验证退出前在途业务不能在退出后重建 active；测试成功与失败/探测差异，文档说明后端无法判断真人，前端禁无条件保活，不能信客户端 active 标记。
+- [x] 5.7 实现统一 refresh 的当前摘要/generation 原子轮换与 ACTIVE 状态检查，保持 original absolute；IT 用可控时间验证 access 两小时、idle7d/1d、active 缺失恢复、30d/7d 绝对截止、主体停用/元数据丢失拒绝与故障 503。
+- [x] 5.8 实现 refreshRequestId 默认 10 秒幂等与 AES-256-GCM 短期响应缓存，角色 key 经 HKDF 域分离派生、AAD 绑定 sid/generation/requestId/absoluteAt，随机 nonce、无明文 token；验证同旧摘要+同 requestId+当前代才同结果、重试不 touch、过窗/异 requestId/旧代真实重放撤销当前 family、未知随机值不误撤销、缓存篡改/过期和退出后不可取回。
+- [x] 5.9 明确并实现 idle touch 策略：成功完成允许的私有业务操作或必要 refresh 可推进，失败/匿名/me/已定义后台轮询不 touch，期限 capped absolute；原子核验 control 未撤销与 active 存在再更新，验证退出前在途业务不能在退出后重建 active；测试成功与失败/探测差异，文档说明后端无法判断真人，前端禁无条件保活，不能信客户端 active 标记。
 
 ## 6. 安全链与三层授权
 
-- [ ] 6.1 建立 /api/v1/** stateless Security 链与 legacy 兼容链，匿名仅 health、店铺短信/消费者登录、员工登录；refresh/logout 进入专用凭证验证分支而非匿名授权。HTTP 测试覆盖无效/过期 access 不阻断合法 refresh/退出、默认保护、无 form/basic/cookie session、旧路由与文档规则保持。
-- [ ] 6.2 将 RequestIdFilter 排在 Security 前，避免认证 Filter 被重复注册；统一过滤器/Controller 的 400/401/403/404/409/429/503 envelope，并扩展错误码接口；契约测试验证每种错误的头/body requestId 一致、不返回 HTML 或堆栈。
-- [ ] 6.3 建立不可变 Actor 与资源边界，每次保护请求读 Redis 并确认 MySQL 账号/商户状态；通用私有租户只取 Actor，公开店铺从 URL 解析；IT 验证停用 401、依赖故障 503、不能用 token 重建失去 control/refresh 的会话。
-- [ ] 6.4 接通更新后 9 API 的 Controller/严格 DTO/Springdoc，替换旧消费者注册契约，refresh 不接收店铺/角色；HTTP 测试覆盖首次自动建号 200、员工创建 201 Location、注入 400、匿名 401/角色 403、no-store 与双 token 字段/截止时间。
-- [ ] 6.5 实现 staff-accounts 同租户、consumer-accounts 同租户本人 SQL 范围；测试资源越界/不存在相同 404、角色越权 403；若入口有显式保护店铺路径则 token 租户不符 403。说明通用路由误收 A token 只能处理 A 身份，不虚构 B 页面校验，不实现订单示例。
-- [ ] 6.6 更新 echo 契约测试为匿名 401、已认证非法输入 400；验证 SecurityContext 和 legacy BaseContext 在正常/异常请求结束后清理，连续复用线程的请求不会继承上一主体，现有旧接口回归通过。
-- [ ] 6.7 在包结构文档记录 auth 入口与后续领域调用约定；以依赖检查确认新 auth 不导入 legacy 账号/Mapper/上下文，不直接为未实现的订单或 Agent 添加持久化模型。
+- [x] 6.1 建立 /api/v1/** stateless Security 链与 legacy 兼容链，匿名仅 health、店铺短信/消费者登录、员工登录；refresh/logout 进入专用凭证验证分支而非匿名授权。HTTP 测试覆盖无效/过期 access 不阻断合法 refresh/退出、默认保护、无 form/basic/cookie session、旧路由与文档规则保持。
+- [x] 6.2 将 RequestIdFilter 排在 Security 前，避免认证 Filter 被重复注册；统一过滤器/Controller 的 400/401/403/404/409/429/503 envelope，并扩展错误码接口；契约测试验证每种错误的头/body requestId 一致、不返回 HTML 或堆栈。
+- [x] 6.3 建立不可变 Actor 与资源边界，每次保护请求读 Redis 并确认 MySQL 账号/商户状态；通用私有租户只取 Actor，公开店铺从 URL 解析；IT 验证停用 401、依赖故障 503、不能用 token 重建失去 control/refresh 的会话。
+- [x] 6.4 接通更新后 9 API 的 Controller/严格 DTO/Springdoc，替换旧消费者注册契约，refresh 不接收店铺/角色；HTTP 测试覆盖首次自动建号 200、员工创建 201 Location、注入 400、匿名 401/角色 403、no-store 与双 token 字段/截止时间。
+- [x] 6.5 实现 staff-accounts 同租户、consumer-accounts 同租户本人 SQL 范围；测试资源越界/不存在相同 404、角色越权 403；若入口有显式保护店铺路径则 token 租户不符 403。说明通用路由误收 A token 只能处理 A 身份，不虚构 B 页面校验，不实现订单示例。
+- [x] 6.6 更新 echo 契约测试为匿名 401、已认证非法输入 400；验证 SecurityContext 和 legacy BaseContext 在正常/异常请求结束后清理，连续复用线程的请求不会继承上一主体，现有旧接口回归通过。
+- [x] 6.7 在包结构文档记录 auth 入口与后续领域调用约定；以依赖检查确认新 auth 不导入 legacy 账号/Mapper/上下文，不直接为未实现的订单或 Agent 添加持久化模型。
 
 ## 7. 开发账号、审计与人工联调
 
-- [ ] 7.1 新增 dev-only `R__auth_demo_accounts.sql`，按商户编码给两个既有 nonprod 租户提供首员工、样板双消费者及对照同手机号消费者，员工存 BCrypt 摘要；验证仅 dev 加载、重复初始化不覆盖凭证/状态，test/prod 均不加载演示数据；对照 `2.4` 验证测试账号只由独立 `@Sql` fixture 提供，生产开通延期。
-- [ ] 7.2 接入独立 auth audit logger 到既有 audit.json，补齐 module、event、requestId、可用 actor/merchant、code 与 duration；日志输出测试验证无密码/hash/token/验证码/原始手机号、无 application/audit 重复落盘，legacy 登录 DTO/微信 code 直打日志已移除。
-- [ ] 7.3 交付 manual-verification.md：dev 账号/仅开发密码、模拟取码/首次建号、员工开通/两类登录、me、刷新/退出、资源隔离、多设备；列出前端 A→B→A、多 tab/重开、idle 恢复/absolute 重登、刷新协调/迟到响应及 localStorage 风险的接入验收，不宣称已有前端实现；在隔离后端实例执行可运行步骤，不写 gba-dev 业务卷。
-- [ ] 7.4 实现后导出 Springdoc docs/api/auth-v1.openapi.yaml，核对更新后 9 操作（无独立注册，有统一 refresh）、双 token DTO、Bearer/refresh body、HTTP/业务码/dev debugCode，更新 API 记录/Apifox 与导航，不拿旧快照作为实现证据。
-- [ ] 7.5 更新测试/备份恢复说明：active idle 丢失可有效 refresh 恢复，control/refresh 全丢失须重登；Redis 故障 503、历史快照恢复后受控失效防撤销回滚；在隔离实例验证，不 flush 开发/生产库或恢复真实卷。
+- [x] 7.1 新增 dev-only `R__auth_demo_accounts.sql`，按商户编码给两个既有 nonprod 租户提供首员工、样板双消费者及对照同手机号消费者，员工存 BCrypt 摘要；验证仅 dev 加载、重复初始化不覆盖凭证/状态，test/prod 均不加载演示数据；对照 `2.4` 验证测试账号只由独立 `@Sql` fixture 提供，生产开通延期。
+- [x] 7.2 接入独立 auth audit logger 到既有 audit.json，补齐 module、event、requestId、可用 actor/merchant、code 与 duration；日志输出测试验证无密码/hash/token/验证码/原始手机号、无 application/audit 重复落盘，legacy 登录 DTO/微信 code 直打日志已移除。
+- [x] 7.3 交付 manual-verification.md：dev 账号/仅开发密码、模拟取码/首次建号、员工开通/两类登录、me、刷新/退出、资源隔离、多设备；列出前端 A→B→A、多 tab/重开、idle 恢复/absolute 重登、刷新协调/迟到响应及 localStorage 风险的接入验收，不宣称已有前端实现；在隔离后端实例执行可运行步骤，不写 gba-dev 业务卷。
+- [x] 7.4 实现后导出 Springdoc docs/api/auth-v1.openapi.yaml，核对更新后 9 操作（无独立注册，有统一 refresh）、双 token DTO、Bearer/refresh body、HTTP/业务码/dev debugCode，更新 API 记录/Apifox 与导航，不拿旧快照作为实现证据。
+- [x] 7.5 更新测试/备份恢复说明：active idle 丢失可有效 refresh 恢复，control/refresh 全丢失须重登；Redis 故障 503、历史快照恢复后受控失效防撤销回滚；在隔离实例验证，不 flush 开发/生产库或恢复真实卷。
 
 ## 8. 后续模块路线与完整验收
 

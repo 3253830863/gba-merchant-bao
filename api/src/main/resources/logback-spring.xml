@@ -46,6 +46,9 @@
         <appender-ref ref="APPLICATION_FILE"/>
         <appender-ref ref="CONSOLE"/>
     </logger>
+    <logger name="com.gba.merchantbao.auth.audit" level="INFO" additivity="false">
+        <appender-ref ref="AUDIT_FILE"/>
+    </logger>
     <root level="INFO">
         <appender-ref ref="CONSOLE"/>
         <appender-ref ref="APPLICATION_FILE"/>

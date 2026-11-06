@@ -19,4 +19,7 @@ public final class TenantResolver {
         if (normalizedMerchantCode == null || normalizedMerchantCode.isBlank()) return Optional.empty();
         return Optional.ofNullable(tenants.findActiveByCode(normalizedMerchantCode));
     }
+    public Optional<Tenant> resolveActiveById(long merchantId) {
+        return Optional.ofNullable(tenants.findActiveById(merchantId));
+    }
 }

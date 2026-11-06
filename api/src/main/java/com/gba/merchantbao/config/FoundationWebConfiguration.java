@@ -13,7 +13,7 @@ public class FoundationWebConfiguration {
         FilterRegistrationBean<RequestIdFilter> registration = new FilterRegistrationBean<>();
         registration.setFilter(new RequestIdFilter());
         registration.addUrlPatterns("/*");
-        registration.setOrder(0);
+        registration.setOrder(org.springframework.core.Ordered.HIGHEST_PRECEDENCE);
         return registration;
     }
 }

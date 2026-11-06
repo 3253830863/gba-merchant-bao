@@ -34,6 +34,9 @@ class JsonLoggingTest {
                     .info("phone={}", PhoneMasker.maskPhone("13800138000"));
             LoggerFactory.getLogger("com.gba.merchantbao.legacy.audit")
                     .info("audit-probe {}", marker);
+            com.gba.merchantbao.auth.infrastructure.AuthAudit.record("POST:/api/v1/auth/staff/login",
+                    new com.gba.merchantbao.auth.domain.Actor(new com.gba.merchantbao.auth.domain.AuthPrincipal(101,202,
+                            com.gba.merchantbao.auth.domain.AccountRole.MERCHANT_STAFF),"never-log-session"),0,12);
             var mapper = new ObjectMapper();
             String application = Files.readString(directory.resolve("application.json"));
             var event = application.lines().map(line -> {
@@ -45,6 +48,15 @@ class JsonLoggingTest {
             assertThat(event.path("message").asText()).contains("138****8000").doesNotContain("13800138000");
             assertThat(application).doesNotContain("audit-probe " + marker);
             assertThat(Files.readString(directory.resolve("audit.json"))).contains(marker);
+            String audit=Files.readString(directory.resolve("audit.json"));
+            var auth=audit.lines().map(line->{try{return mapper.readTree(line);}catch(Exception e){throw new AssertionError(e);}})
+                    .filter(n->marker.equals(n.path("requestId").asText())&&"auth".equals(n.path("module").asText())).findFirst().orElseThrow();
+            assertThat(auth.path("actor").asText()).isEqualTo("101");
+            assertThat(auth.path("merchant").asText()).isEqualTo("202");
+            assertThat(auth.path("code").asInt()).isZero();
+            assertThat(auth.path("durationMs").asInt()).isEqualTo(12);
+            assertThat(audit).doesNotContain("never-log-session","13800138000","password","passwordHash","accessToken","refreshToken","debugCode");
+            assertThat(application).doesNotContain("auth_event");
             String config = Files.readString(Path.of("src/main/resources/logback-spring.xml"));
             assertThat(config).contains("SizeAndTimeBasedRollingPolicy", "%i.json.gz", "100MB",
                     "<maxHistory>7</maxHistory>", "<maxHistory>30</maxHistory>",

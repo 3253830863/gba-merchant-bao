@@ -69,6 +69,12 @@ ProductionInfrastructureIT 已用隔离 MySQL 验证结构、代表性行及 ver
 
 ## Redis
 
+认证会话不能仅靠 JWT 恢复。只有 `session:{sid}` active idle 数据丢失时，仍有效且未撤销的 control/当前 refresh 可经 refresh 原子恢复；control 或当前 refresh 索引丢失，必须重新短信/密码登录。Redis 或 MySQL 无法确认时 API 返回 503，不降级放行。
+
+历史 RDB/AOF 可能把已撤销/已轮换会话恢复成有效状态。恢复后先隔离验证，不直接接流量；评审后为所有 API 实例同时切换新的 `merchant.auth.namespace`（例如 prod-recovery-日期），强制旧会话重登，或受控轮换两类认证 key 并一致切换。不能让部分实例继续访问旧前缀。保留原备份供调查，不能用 flush 开发/生产 Redis 代替演练；namespace 变更也会重置限流窗口，需纳入切换计划。
+
+AuthFlowIT 在隔离容器验证 active 缺失可 refresh、control/refresh 缺失拒绝、撤销后不可恢复和故障 503；未恢复任何真实卷。历史快照的受控失效操作属于实际恢复流程，不能把测试中删除专用键当成生产恢复授权。
+
 dev/prod 开启 AOF、数据在命名卷。若仅缓存或可重新登录的会话可重建，则不预建备份作业。
 后续模块若存不可丢状态，明确一致性策略：RDB 可触发 BGSAVE，确认 LASTSAVE 更新及后台保存结束后保存已完成的快照；
 Redis 7 多段 AOF 应按其原生备份流程在受控窗口暂停自动重写并确认无重写，再复制完整 appendonlydir（含 manifest），完成后恢复配置，或停服后一致性复制。

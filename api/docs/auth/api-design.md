@@ -1,6 +1,6 @@
 # 认证模块 API 契约
 
-状态：add-redis-auth-sessions 任务组 1 的目标设计，未宣称接口上线。最终 OpenAPI 在后续实现后由 Controller/DTO/校验/Springdoc 导出，不以本文替代运行证据。
+状态：以下九操作已实现，隔离测试与联调见 [联调手册](manual-verification.md)。[认证 OpenAPI 快照](../../../docs/api/auth-v1.openapi.yaml) 来自实际 Springdoc auth-v1 分组；第 8 节完整验收暂未执行，未发布生产。
 
 ## 通用约定
 
@@ -151,7 +151,7 @@ POST /api/v1/auth/logout；有效未过期 access 可提交空 body 或 {}。acc
 | 401 | 11001 AUTH_CREDENTIALS_INVALID | 登录账号/密码/商户无效或停用，统一消息 |
 | 400 | 11002 AUTH_SMS_CODE_INVALID | 验证码错误、过期、已用、范围不符 |
 | 429 | 11003 AUTH_RATE_LIMITED | 发送/登录/刷新超限，Retry-After |
-| 503 | 11501 AUTH_DEPENDENCY_UNAVAILABLE | MySQL/Redis/重试解密等依赖无法完成 |
+| 503 | 11501 AUTH_DEPENDENCY_UNAVAILABLE | MySQL/Redis 依赖无法完成；缓存篡改作为无效凭证拒绝 |
 | 503 | 11502 AUTH_SMS_UNAVAILABLE | 短信关闭或发送失败 |
 | 500 | 10500 INTERNAL_ERROR | 非预期错误，不泄露堆栈 |
 
@@ -165,4 +165,12 @@ POST /api/v1/auth/logout；有效未过期 access 可提交空 body 或 {}。acc
 
 ## 验收与延期
 
-后续 HTTP/Redis/MySQL 隔离验收至少覆盖首次/已有登录、唯一冲突、码重放、A/B 与本人隔离、idle 恢复、absolute 失效、短时重试/真正重放、停用、退出刷新竞争/重复退出、故障 503、独立多设备。数据仍 devdata/fixture 分层，生产首员工、平台管理、RBAC、真实短信、前端和 Cookie 迁移均延期。旧协议兼容与 echo 认证变化登记旧接口迁移清单，实际导出/测试由后续未勾选任务完成。
+定向 HTTP/Redis/MySQL 测试覆盖首次/已有登录、唯一冲突、码重放、A/B 与本人隔离、idle 恢复、absolute 失效、短时重试/真正重放、停用、退出刷新竞争/重复退出、故障 503、独立多设备。数据仍 devdata/fixture 分层，生产首员工、平台管理、RBAC、真实短信、前端和 Cookie 迁移均延期。旧协议兼容与 echo 认证变化登记旧接口迁移清单；任务组 8 的全量 test/clean verify 尚待后续执行。
+
+## 配置与前端协调细节
+
+dev YAML 显式 `merchant.auth.sms.provider: mock` 和 `expose-debug-code: true` 才回显 debugCode；默认 disabled 返回 503/11502。test 可替换 SmsSender，test 单独 profile 不回显；prod 禁止 mock/debug 并在启动时拒绝。生产真实短信留待独立集成。限流默认与 Redis key/TTL 见 [数据设计](data-design.md)。
+
+建议 localStorage 键 `merchantbao.auth:{accountType}:{storeSlug}`，保存双 token、principal、截止时刻及本地 epoch。对同一个键使用 Web Locks 或同源协调器形成单次刷新；共享同一在途 refreshRequestId，丢响应的短时重试复用 UUID，后续正常刷新用新 UUID。BroadcastChannel/storage event 同步结果与退出，不能让两个 tab 各用不同 UUID 刷同一个旧 token。锁失败不得无限后台重试。
+
+发请求时记住键和 epoch；切店只变当前选择，响应只更新原键。新登录/退出先提升 epoch，退出广播并清凭证；迟到 refresh/login 只有 epoch 匹配且没有退出标记才可写入。A→B→A 保留 A；不同类型分别存。关闭浏览器后凭持久化 refresh 在 absolute 内按需恢复，重开不延长 absolute。服务端不能证明前端真人活动，禁止无条件定时保活或信任客户端 active 标记。这里是接入要求，仓库尚无该前端实现。

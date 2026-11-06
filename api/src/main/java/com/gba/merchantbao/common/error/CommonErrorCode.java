@@ -9,7 +9,12 @@ public enum CommonErrorCode {
     FORBIDDEN(10003, "forbidden"),
     RESOURCE_NOT_FOUND(10004, "resource not found"),
     CONFLICT(10009, "conflict"),
-    INTERNAL_ERROR(10500, "internal server error");
+    INTERNAL_ERROR(10500, "internal server error"),
+    AUTH_CREDENTIALS_INVALID(11001, "invalid credentials"),
+    AUTH_SMS_CODE_INVALID(11002, "invalid SMS code"),
+    AUTH_RATE_LIMITED(11003, "rate limited"),
+    AUTH_DEPENDENCY_UNAVAILABLE(11501, "authentication dependency unavailable"),
+    AUTH_SMS_UNAVAILABLE(11502, "SMS unavailable");
 
     private final int code;
     private final String message;

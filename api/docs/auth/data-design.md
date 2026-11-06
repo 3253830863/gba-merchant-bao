@@ -1,6 +1,6 @@
 # 认证数据设计
 
-本页记录 add-redis-auth-sessions 任务组 2 的持久化边界；认证 HTTP、JWT、短信与 Redis 会话尚待后续任务实现。
+本页记录 add-redis-auth-sessions 的账号持久化、短信与 Redis 会话实现。任务组 8 的后续模块路线与完整验收暂未执行；这里不表示生产发布。
 
 ## 表与字段
 
@@ -67,8 +67,10 @@ MySQL TIMESTAMP 按时区转换并保存时刻，持久化行使用 `Instant`，
 | db/migration/V4__auth_accounts.sql | 无，只有 DDL | dev/test 与受控 prod 迁移 |
 | db/seed/common | 无认证账号 | 全环境参考数据路径 |
 | db/seed/nonprod | 只有两个既有租户根，无认证账号 | dev/test Flyway |
-| db/devdata | 本次不加入演示账号；任务 7.1 再实现 | 仅 dev Flyway |
+| db/devdata | R__auth_demo_accounts.sql，两个首员工及三个消费者 | 仅 dev Flyway |
 | src/test/resources/db/fixture/auth_accounts.sql | 独立测试账号 | 相关测试 `@Sql` 显式加载，不在任意 Flyway locations |
+
+空 dev 库中 repeatable 按描述排序，auth 脚本可能早于 nonprod 商户种子执行。`AuthDevDataConfiguration` 仅在 dev（非 prod）且 locations 显式包含 devdata 时注册 AFTER_MIGRATE 回调，在全部迁移完成后重跑同一份只插缺失账号的 SQL。保留既有种子名称/历史；重复 migrate 不覆盖账号密码、状态或展示资料。test 默认不加载该位置，专用隔离联调测试才显式启用 dev。
 
 fixture 按 `M_3C_DEMO` / `M_ISOLATION_TEST` 商户编码解析 merchant.id，不复制租户内部 ID。两个租户各有 fixture_staff；样板租户两名消费者，对照租户一名复用手机号消费者。使用合成号码、固定测试主键和独立 test-only BCrypt cost=12 凭证，与后续 dev 演示密码分离，不发送真实短信。
 
@@ -97,3 +99,36 @@ prod YAML 强制从 `MERCHANT_ID_WORKER_ID` 读取，生产 Compose 同样要求
 时钟回退、越过 epoch 范围均拒绝生成；同一毫秒超过 4096 个 ID 时立即失败，调用方只能在时钟推进后重试，不制造未来时间也不忙等。受控测试时钟验证并发唯一、回退和序列耗尽。现有 merchant 固定种子 ID 和 legacy 自增 ID 不改写。
 
 持久化与 Mapper 使用 long/Long；新 API 的 accountId、merchantId 使用 `common.api.ApiId`（`@JsonValue` 输出十进制字符串），避免 JavaScript 对大于 2^53−1 的整数丢失精度；该类型不改变 expiresIn 等数值，也不修改 legacy 序列化。后续认证 DTO 必须沿用此边界。
+
+## Redis 命名空间与原子边界
+
+认证独立使用 StringRedisTemplate 和 Lua，不修改 legacy RedisTemplate 序列化。前缀 `mba:{namespace}:auth:`，namespace 来自 `merchant.auth.namespace`，默认单个激活 profile；多 profile 必须显式配置单一命名空间。它是部署隔离与受控失效开关，不是 Redis Cluster hash tag；当前脚本面向单实例 Redis。所有 API 实例必须使用相同环境前缀，dev/test/prod 不共用前缀。
+
+| 后缀 | 类型 | 值与 TTL |
+| --- | --- | --- |
+| sms:{merchantId}:LOGIN:{phoneSha256} | hash | 随机 challengeId、盐、验证码摘要、ready、失败数、expiresAt；300 秒 |
+| sms-cooldown:{merchantId}:LOGIN:{phoneSha256} | string | 发送占位；默认 60 秒 |
+| sms-quota:{merchantId}:LOGIN:{phoneSha256} | string | 默认 10 次/小时；第一次写入原子设置 3600 秒 |
+| sms-ip:{remoteAddrSha256} | string | 默认 30 次/小时，3600 秒 |
+| login-ip:/refresh-ip:{remoteAddrSha256} | string | 分别默认 30 次/900 秒，原子计数/TTL |
+| password-fail:{merchantId}:account:{id} | string | 同员工用户名/手机号共享失败数，5 次/900 秒；未知账号用标识摘要，成功清除账号失败数 |
+| session:{sid} | string JSON | 身份与 idleAt；消费者 7 天、员工 1 天，均 capped absolute |
+| control:{sid} | hash | sid、可信身份、loginAt、absoluteAt、generation、currentHash、state、retryKey；消费者 30 天/员工 7 天固定截止 |
+| refresh:{tokenSha256} | hash | sid、generation、CURRENT/USED/REVOKED、已用 requestId/usedAt；原 absolute 到期 |
+| refresh-retry:{sid}:{requestId} | string | AES-256-GCM 密文；默认 10 秒，最多到 absolute |
+
+限流属性在 `merchant.auth.limits`，名称对应 AuthLimits 的 kebab-case，例如 sms-phone-per-hour、sms-ip-per-hour、login-ip-per-window、refresh-ip-per-window、login-window-seconds、password-failures、password-window-seconds、refresh-retry-seconds。只信 servlet remoteAddr，不解析客户端 X-Forwarded-For。超限 429/11003，Retry-After 是剩余窗口秒数。
+
+短信先原子预留 PENDING，再调用 SmsSender，最后按 challengeId 激活。未激活不可用；发送失败按该代 ID 清理，不误删后发挑战。验证码只保留带盐摘要，成功消费与第五次失败删除均为 Lua 原子操作。普通日志不含号码、验证码或 body；没有真实短信 SDK。
+
+消费者先消费挑战，再提交 MySQL 查找/首次建号事务。唯一冲突在回滚事务之外重读赢家并检查 ACTIVE；停用记录不重建。数据库故障不恢复挑战；账号提交后 Redis 故障保留账号，返回 503 且无双 token。
+
+初始会话一次脚本写入 active/control/refresh。sid、refresh 是独立的 256 位安全随机值，refresh 只存 SHA-256；JWT jti 独立随机。refresh 从摘要反查可信身份，MySQL 状态有效后用 CAS 轮换 currentHash/generation 和 idle，original absolute 固定。只有 active 丢失可恢复；control 或当前索引丢失拒绝，JWT 不能补建。me、匿名、失败和后台轮询不 touch；当前两个账号详情与员工创建成功后 touch，脚本须同时验证 control ACTIVE、当前索引及现存 active，退出前的在途请求不能重建。
+
+重试缓存通过角色 JWT key 使用 HKDF-SHA256（info=auth-refresh-retry-v1）派生 AES-256-GCM key，随机 12 字节 nonce，AAD=sid:generation:requestId:absoluteAt。相同旧摘要/UUID 在 10 秒内且下一代仍当前才取回同响应，不重复 touch；密文篡改拒绝。过窗、不同 UUID、旧代重放原子撤销该 family、active 与缓存；未知随机值不撤销其他会话。
+
+logout 支持有效 access 或已知历史 refresh，原子撤销 control、当前 refresh、active 和缓存。历史摘要与撤销墓碑保留到 absolute 支持重复退出；其存在不授予刷新权限。独立设备/店铺/类型互不影响。Redis/MySQL 不可用统一 503，绝不降级为只验 JWT。
+
+## 账号维护
+
+devdata 按商户编码关联，只插入缺失的稳定用户名/手机号，不覆盖现存 hash/status；首员工 created_by=NULL，普通开通只取 Actor。演示密码与 fixture 分离，见 [联调手册](manual-verification.md)。新员工密码由调用方生成，经模块外安全渠道交付；不提供查回明文、自动替同事登录、重置/停用管理或生产 bootstrap。
