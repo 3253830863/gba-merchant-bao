@@ -15,7 +15,7 @@
 - 当前 dev/test 与短期生产约定按店铺和账号类型在 localStorage 保存双 token，跨店保留、同店多 tab 协调刷新/退出，明示 XSS 风险；生产 access 内存 + refresh HttpOnly Cookie 的迁移另开 change。
 - 新增认证账号表与租户内唯一索引、并发自动建号约束、模拟短信限流和一次性校验；员工和消费者演示账号只放 devdata，测试账号只通过 `@Sql` fixture 加载；生产首员工与生产账号种子延期到后续商户入驻/平台管理方案。
 - 完善实际 dev JWT 密钥、占位示例、Base64 解码与启动校验；解释根 `.env`、IDEA YAML、prod 环境变量与 Docker 命令的关系。
-- 形成按业务场景推进的后续模块路线，标明 RAG、Function Calling、RabbitMQ 文档任务、Redis ChatMemory 各自的最低前置与独立评测门槛；后续模块只列路线，不在本 change 实现。
+- 参照原始 PRD 与多人分工，分别列出队友可认领的商品、库存、订单、物流完整模块；本人负责 Agent 四亮点及知识库/文档、完整消息/SSE、评测配套，按真实查询 Service 就绪逐个接入 Tool，不等全部业务模块完成；auth 迁移为 controller/service/mapper 三层包结构，后续模块沿用，明确各亮点前置与真实验收；后续模块只列路线，不在本 change 实现。
 
 ## Capabilities
 

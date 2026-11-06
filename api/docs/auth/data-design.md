@@ -1,6 +1,6 @@
 # 认证数据设计
 
-本页记录 add-redis-auth-sessions 的账号持久化、短信与 Redis 会话实现。任务组 8 的后续模块路线与完整验收暂未执行；这里不表示生产发布。
+本页记录 add-redis-auth-sessions 的账号持久化、短信与 Redis 会话实现。后续模块仅交付路线，完整验收见 [验证记录](verification.md)；这里不表示生产发布。
 
 ## 表与字段
 
@@ -29,7 +29,7 @@
 
 MySQL TIMESTAMP 按时区转换并保存时刻，持久化行使用 `Instant`，接口时间约定 UTC ISO-8601。不得用本地时间字符串替代真实时刻；运行连接的时区设置必须与驱动约定一致。
 
-外键均不级联删除或修改。员工仍被其他员工引用时不能删除；业务停用保留记录，不释放原手机号/用户名。Mapper 的 delete 是内部受租户与版本约束的数据操作，本期没有账号删除 HTTP 功能。数据库只证明非空创建者同租户，不证明调用者身份、权限或“仅首员工可 NULL”；后续开通用例必须从可信 Actor 写入商户/创建者，不开放 bootstrap。
+外键均不级联删除或修改。员工仍被其他员工引用时不能删除；业务停用保留记录，不释放原手机号/用户名。Mapper 的 delete 是内部受租户与版本约束的数据操作，本期没有账号删除 HTTP 功能。数据库只证明非空创建者同租户，不证明调用者身份、权限或“仅首员工可 NULL”；开通用例从可信 Actor 写入商户/创建者，不开放 bootstrap。
 
 ## 索引与查询
 
@@ -46,19 +46,19 @@ MySQL TIMESTAMP 按时区转换并保存时刻，持久化行使用 `Instant`，
 | merchant_staff_account / uk_staff_merchant_phone | merchant_id, phone | 员工手机号等值查询、开通唯一约束 |
 | merchant_staff_account / idx_staff_merchant_creator | merchant_id, created_by | 创建者组合外键的引用端索引，限制跨租户创建关系 |
 
-不新增 status、created_at、last_login_at 索引；当前没有列表查询。员工用户名与手机号由后续输入规则分流，分别命中唯一索引，不使用 OR 或全表扫描。`AuthPersistenceIT` 对实际 Mapper BoundSql 执行 MySQL EXPLAIN，验证手机号、用户名、merchant_code 使用对应唯一索引；按全局唯一 id 定位时优化器可以选 PRIMARY，SQL 中的 merchant_id 仍是不可省略的过滤条件。
+不新增 status、created_at、last_login_at 索引；当前没有列表查询。员工用户名与手机号由输入规则分流，分别命中唯一索引，不使用 OR 或全表扫描。`AuthPersistenceIT` 对实际 Mapper BoundSql 执行 MySQL EXPLAIN，验证手机号、用户名、merchant_code 使用对应唯一索引；按全局唯一 id 定位时优化器可以选 PRIMARY，SQL 中的 merchant_id 仍是不可省略的过滤条件。
 
-`auth.infrastructure.persistence` 自有 Mapper 与 `mapper/auth/*.xml`，不依赖 legacy 实体/Mapper。`MyBatisConfiguration` 显式扫描新旧 `@Mapper`，`classpath*:mapper/**/*.xml` 同时加载根目录旧 XML 和递归新 XML。auth 查询禁用结果缓存并刷新本次会话缓存，以便状态查询不复用之前的 ACTIVE 结果；事务可见性仍遵守 MySQL 的隔离级别，不能把缓存设置理解成跨事务即时一致性。
+`auth.mapper` 自有 Mapper 与 `mapper/auth/*.xml`，数据库 Row 放在 `auth.entity`，不依赖 legacy 实体/Mapper。`MyBatisConfiguration` 显式扫描新旧 `@Mapper`，`classpath*:mapper/**/*.xml` 同时加载根目录旧 XML 和递归新 XML。auth 查询禁用结果缓存并刷新本次会话缓存，以便状态查询不复用之前的 ACTIVE 结果；事务可见性仍遵守 MySQL 的隔离级别，不能把缓存设置理解成跨事务即时一致性。
 
-消费者查手机号、员工查用户名/手机号、资源详情都要求 merchantId；消费者资源查询另带 ownerAccountId。无匹配返回 null，由后续授权用例统一解释为 404，不能先全局查存在性。更新/删除同时带 merchant_id、id、expectedVersion，不匹配返回 0；不能更新租户、主键或 created_by。插入的 created_by 即使被误传其他商户 ID，也由组合外键拒绝。
+消费者查手机号、员工查用户名/手机号、资源详情都要求 merchantId；消费者资源查询另带 ownerAccountId。无匹配返回 null，由授权用例统一解释为 404，不能先全局查存在性。更新/删除同时带 merchant_id、id、expectedVersion，不匹配返回 0；不能更新租户、主键或 created_by。插入的 created_by 即使被误传其他商户 ID，也由组合外键拒绝。
 
 ## 手机号与凭证数据边界
 
-手机号持久化前必须规范化：大陆 11 位或等价 +86 输入统一成 `+86` 加 11 位。Mapper 接受已规范化值，不自行 trim/拼接国家码；输入规范化与格式验证留在任务组 4。ASCII 二进制唯一索引只比较规范化后原值，不替应用验证号码格式。用户名同理，后续按 `[a-z][a-z0-9_-]{2,31}` 规范化为小写后写入。
+手机号持久化前必须规范化：大陆 11 位或等价 +86 输入统一成 `+86` 加 11 位。Mapper 接受已规范化值，不自行 trim/拼接国家码；输入规范化与格式验证由 AuthInput 完成。ASCII 二进制唯一索引只比较规范化后原值，不替应用验证号码格式。用户名同理，按 `[a-z][a-z0-9_-]{2,31}` 规范化为小写后写入。
 
 原始规范化手机号只用于内部索引定位和后续短信发送；不把掩码写回数据库或用掩码判断唯一。新 API 必须显式映射为 phoneMasked（含 +86 的脱敏能力在任务组 4 完成），不直接返回持久化行。`ConsumerAccountRow` / `StaffAccountRow` 是内部数据，toString 不含手机号、用户名、密码摘要；不能记录整行、请求体或 SQL 参数。password_hash 也不得进入接口或普通/审计日志。这里的持久化设计不等于手机号已加密或匿名化。
 
-已有 DISABLED 账号仍被查出，由后续登录用例拒绝，不能过滤后误建新号。消费者并发建号必须以 `(merchant_id,phone)` 唯一冲突读取赢家并重新检查状态；员工重复标识由后续用例映射 409。Mapper 不实现登录、密码校验或 Redis 会话事务。
+已有 DISABLED 账号仍被查出，由登录用例拒绝，不能过滤后误建新号。消费者并发建号以 `(merchant_id,phone)` 唯一冲突读取赢家并重新检查状态；员工重复标识由开通用例映射 409。Mapper 不实现登录、密码校验或 Redis 会话事务。
 
 ## 数据分层与独立 fixture
 

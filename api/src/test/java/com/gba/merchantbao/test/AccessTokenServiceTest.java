@@ -1,11 +1,11 @@
 package com.gba.merchantbao.test;
 
-import com.gba.merchantbao.auth.application.AccessTokenService;
+import com.gba.merchantbao.auth.service.AccessTokenService;
 import com.gba.merchantbao.auth.config.AuthJwtKeyMaterial;
 import com.gba.merchantbao.auth.config.AuthJwtProperties;
-import com.gba.merchantbao.auth.domain.AccountRole;
-import com.gba.merchantbao.auth.domain.AuthPrincipal;
-import com.gba.merchantbao.auth.domain.InvalidAccessTokenException;
+import com.gba.merchantbao.auth.enums.AccountRole;
+import com.gba.merchantbao.auth.security.AuthPrincipal;
+import com.gba.merchantbao.auth.exception.InvalidAccessTokenException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import org.junit.jupiter.api.Test;

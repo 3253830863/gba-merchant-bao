@@ -1,5 +1,9 @@
 package com.gba.merchantbao.test;
 
+import com.gba.merchantbao.auth.enums.AccountRole;
+import com.gba.merchantbao.auth.security.AuthPrincipal;
+import com.gba.merchantbao.auth.service.AccessTokenService;
+
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -40,7 +44,7 @@ public class HttpClientTest {
     @Autowired
     private com.gba.merchantbao.legacy.properties.JwtProperties jwtProperties;
     @Autowired
-    private com.gba.merchantbao.auth.application.AccessTokenService accessTokens;
+    private com.gba.merchantbao.auth.service.AccessTokenService accessTokens;
 
     @org.junit.jupiter.api.AfterEach
     void clearLegacyTestContext() {
@@ -70,9 +74,9 @@ public class HttpClientTest {
         mockMvc.perform(post("/admin/employee/logout").header("Authorization", "Bearer " + adminToken))
                 .andExpect(status().isUnauthorized());
         mockMvc.perform(get("/user/addressBook/list").header("token", userToken)).andExpect(status().isUnauthorized());
-        for (var role : com.gba.merchantbao.auth.domain.AccountRole.values()) {
+        for (var role : com.gba.merchantbao.auth.enums.AccountRole.values()) {
             var now = java.time.Instant.now();
-            String newToken = accessTokens.issue(new com.gba.merchantbao.auth.domain.AuthPrincipal(101, 202, role),
+            String newToken = accessTokens.issue(new com.gba.merchantbao.auth.security.AuthPrincipal(101, 202, role),
                     "sid", now, now.plusSeconds(86400)).token();
             mockMvc.perform(post("/admin/employee/logout").header("token", newToken)).andExpect(status().isUnauthorized());
             mockMvc.perform(get("/user/addressBook/list").header("authentication", newToken)).andExpect(status().isUnauthorized());

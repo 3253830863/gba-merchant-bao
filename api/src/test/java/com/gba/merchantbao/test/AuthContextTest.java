@@ -1,6 +1,6 @@
 package com.gba.merchantbao.test;
 
-import com.gba.merchantbao.auth.infrastructure.AuthSecurityFilter;
+import com.gba.merchantbao.auth.security.AuthSecurityFilter;
 import com.gba.merchantbao.legacy.config.LegacyContextConfiguration;
 import com.gba.merchantbao.legacy.context.BaseContext;
 import org.junit.jupiter.api.Test;

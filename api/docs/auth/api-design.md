@@ -1,6 +1,6 @@
 # 认证模块 API 契约
 
-状态：以下九操作已实现，隔离测试与联调见 [联调手册](manual-verification.md)。[认证 OpenAPI 快照](../../../docs/api/auth-v1.openapi.yaml) 来自实际 Springdoc auth-v1 分组；第 9 节完整验收暂未执行，未发布生产。
+状态：以下九操作已实现，隔离测试与联调见 [联调手册](manual-verification.md)。[认证 OpenAPI 快照](../../../docs/api/auth-v1.openapi.yaml) 来自实际 Springdoc auth-v1 分组；最终验收见 [验证记录](verification.md)，未发布生产。
 
 ## 通用约定
 
@@ -165,7 +165,7 @@ POST /api/v1/auth/logout；有效未过期 access 可提交空 body 或 {}。acc
 
 ## 验收与延期
 
-定向 HTTP/Redis/MySQL 测试覆盖首次/已有登录、唯一冲突、码重放、A/B 与本人隔离、idle 恢复、absolute 失效、短时重试/真正重放、停用、退出刷新竞争/重复退出、故障 503、独立多设备。数据仍 devdata/fixture 分层，生产首员工、平台管理、RBAC、真实短信、前端和 Cookie 迁移均延期。旧协议兼容与 echo 认证变化登记旧接口迁移清单；任务组 8 的全量 test/clean verify 尚待后续执行。
+定向 HTTP/Redis/MySQL 测试覆盖首次/已有登录、唯一冲突、码重放、A/B 与本人隔离、idle 恢复、absolute 失效、短时重试/真正重放、停用、退出刷新竞争/重复退出、故障 503、独立多设备。数据仍 devdata/fixture 分层，生产首员工、平台管理、RBAC、真实短信、前端和 Cookie 迁移均延期。旧协议兼容与 echo 认证变化登记旧接口迁移清单；全量 test/clean verify 的结果见 [验证记录](verification.md)。
 
 ## 配置与前端协调细节
 

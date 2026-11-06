@@ -83,7 +83,9 @@
 
 ## 9. 后续模块路线与完整验收
 
-- [ ] 9.1 将 design 第 9 节整理为 `api/docs/architecture/module-roadmap.md` 并添加 README 导航；核对认证→商品/库存→只读订单/物流→知识文档的业务顺序及四个亮点各自最低前置，明确 MQ 不依赖 FC、ChatMemory 不等待前三亮点；不实现路线中的后续模块。
-- [ ] 9.2 路线标注每模块仍按需求→API→表/索引→实现→测试/联调推进，四亮点独立真实评测，CI 与真实短信/部署另开 change；核对没有消费者下单支付、订单超时 MQ、平台后台、RBAC 或未使用中间件混入当前范围。
-- [ ] 9.3 运行 mvn -f api/pom.xml test 与 clean verify；确认 HTTP/MySQL/Flyway/Redis、首次建号并发、idle/absolute、轮换重试/重放、退出刷新竞争及故障 IT 实际执行；Docker 不可用明确失败，不连接固定开发端口/业务卷，报告仅 target。
-- [ ] 9.4 汇总本 change 的真实验证结果、迁移/契约差异、手动联调与已知限制；运行 `openspec validate add-redis-auth-sessions --strict`，核对四份工件及维护文档一致，确认实际 dev key 被忽略、无凭据进入 diff，且没有执行真实生产发布。
+- [x] 9.0 将 auth 实际迁移为 controller/service/mapper，Row 与请求分置 entity/dto，安全/缓存/异常使用辅助包；同步 package/import、MapperScan、XML namespace/resultType、Springdoc/ControllerAdvice 与测试，更新包结构及数据文档；后续业务域统一该结构；验证编译、单元/HTTP 与真实 MySQL/Redis 认证集成，保持接口与安全行为。
+
+- [x] 9.1 参照 `docs/initialization/设计手稿.md` 与已确认分工，修订 design 第 9 节、proposal、`api/docs/architecture/module-roadmap.md` 和 README 导航；分别列队友的商品、库存、订单、物流完整模块，以及本人 Agent 四亮点/知识库文档/完整历史与 SSE/评测；逐模块写功能、数据、接口、测试、依赖及真实 Service 够用即接入的条件，不等待四模块全部完工，不强制测试替身流程；保留 ChatMemory，客服接管不列本次目标。
+- [x] 9.2 路线标注每模块仍按需求→API→表/索引→实现→测试/联调推进，四亮点独立真实评测与 badcase、并行迁移编号协调；CI、真实短信/部署另开 change，课程 WebService/Nginx/Redis 并发验收单独安排；核对没有消费者下单支付、订单超时 MQ、平台后台、完整 RBAC 或未使用中间件混入当前范围。
+- [x] 9.3 运行 mvn -f api/pom.xml test 与 clean verify；确认 HTTP/MySQL/Flyway/Redis、首次建号并发、idle/absolute、轮换重试/重放、退出刷新竞争及故障 IT 实际执行；Docker 不可用明确失败，不连接固定开发端口/业务卷，报告仅 target。
+- [x] 9.4 汇总本 change 的真实验证结果、迁移/契约差异、手动联调与已知限制；运行 `openspec validate add-redis-auth-sessions --strict`，核对四份工件及维护文档一致，确认实际 dev key 被忽略、无凭据进入 diff，且没有执行真实生产发布。

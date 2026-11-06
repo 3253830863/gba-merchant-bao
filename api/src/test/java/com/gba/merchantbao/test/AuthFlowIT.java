@@ -1,10 +1,22 @@
 package com.gba.merchantbao.test;
 
+import com.gba.merchantbao.auth.cache.AuthRedis;
+import com.gba.merchantbao.auth.entity.ConsumerAccountRow;
+import com.gba.merchantbao.auth.enums.AccountRole;
+import com.gba.merchantbao.auth.exception.AuthError;
+import com.gba.merchantbao.auth.mapper.ConsumerAccountMapper;
+import com.gba.merchantbao.auth.security.Actor;
+import com.gba.merchantbao.auth.security.AuthPrincipal;
+import com.gba.merchantbao.auth.service.AccessTokenService;
+import com.gba.merchantbao.auth.service.AccountDirectory;
+import com.gba.merchantbao.auth.service.AccountService;
+import com.gba.merchantbao.auth.service.AuthRateLimiter;
+import com.gba.merchantbao.auth.service.SessionService;
+import com.gba.merchantbao.auth.service.SmsChallengeService;
+import com.gba.merchantbao.auth.service.SmsSender;
+import com.gba.merchantbao.auth.util.AuthCrypto;
+
 import com.fasterxml.jackson.databind.*;
-import com.gba.merchantbao.auth.application.*;
-import com.gba.merchantbao.auth.domain.*;
-import com.gba.merchantbao.auth.infrastructure.*;
-import com.gba.merchantbao.auth.infrastructure.persistence.*;
 import com.gba.merchantbao.auth.config.AuthLimits;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -210,7 +222,7 @@ class AuthFlowIT {
     @Test void independentChallengesRacingFirstLoginReuseOneCommittedAccount() throws Exception {
         String phone="+8613900000551";long merchant=tenant();var selected=new CountDownLatch(2);var firstConsumed=new CountDownLatch(1);var reads=new java.util.concurrent.atomic.AtomicInteger();
         doAnswer(invocation->{
-            ConsumerAccountRow found=sqlSession.selectOne("com.gba.merchantbao.auth.infrastructure.persistence.ConsumerAccountMapper.findByPhone",Map.of("merchantId",merchant,"phone",phone));
+            ConsumerAccountRow found=sqlSession.selectOne("com.gba.merchantbao.auth.mapper.ConsumerAccountMapper.findByPhone",Map.of("merchantId",merchant,"phone",phone));
             if(reads.incrementAndGet()<=2){firstConsumed.countDown();selected.countDown();assertThat(selected.await(5,TimeUnit.SECONDS)).isTrue();}
             return found;
         }).when(consumerMapper).findByPhone(merchant,phone);

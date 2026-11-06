@@ -1,7 +1,7 @@
 package com.gba.merchantbao.auth.config;
 
-import com.gba.merchantbao.auth.application.SmsSender;
-import com.gba.merchantbao.auth.domain.AuthError;
+import com.gba.merchantbao.auth.service.SmsSender;
+import com.gba.merchantbao.auth.exception.AuthError;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;

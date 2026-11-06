@@ -1,6 +1,6 @@
 # 认证后端联调
 
-范围为 add-redis-auth-sessions 第 4–7 节。这里记录后端操作与前端接入要求；未实现前端、未执行第 9 节全量验收、未发布生产。
+范围为 add-redis-auth-sessions 第 4–7 节。这里记录后端操作与前端接入要求；未实现前端、未发布生产；第 9 节全量验收结果见 [验证记录](verification.md)。
 
 ## 开发配置与账号
 
@@ -61,4 +61,4 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File api/docs/auth/manual-ver
 
 AuthFlowIT 覆盖账号提交/故障、独立挑战并发唯一冲突、双 token、idle/absolute、加密幂等重试/重放、退出竞争、状态检查与 HTTP 权限。AuthSmsRedisIT 覆盖挑战并发一次消费、失败清理、限流和旧 Redis 序列化并存。HttpClientTest 回归旧路由/头/envelope 和新旧 token 交叉拒绝；AuthContextTest 验证正常/异常 finally 清上下文。JsonLoggingTest 读取真实 JSON 日志验证审计字段和分流。
 
-报告与本次脚本输出只在 `api/target/`。完整 `test`/`clean verify` 与第 8 节汇总留待后续；Docker 不可用应失败，不跳过或改连固定开发端口。
+报告与本次脚本输出只在 `api/target/`。第 9 节完整 `test`/`clean verify` 汇总见 [验证记录](verification.md)；Docker 不可用应失败，不跳过或改连固定开发端口。

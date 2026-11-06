@@ -165,7 +165,7 @@ localStorage 长期凭证可被 XSS 窃取，键分区不是安全隔离；不�
 
 ### 6. Security 与领域服务共同落实三层授权
 
-新 `auth/controller`、`application`、`domain`、`infrastructure` 归于同一业务域，Mapper 及 XML 在 auth 自己的边界内；更新 MyBatis 扫描及 `mapper/**/*.xml` 发现配置，并确保旧 Mapper 继续加载。新代码不导入 legacy 的 JwtProperties、BaseContext、User/Employee 或 Mapper。
+新 `auth/controller` → `service` → `mapper` 归于同一业务域，持久化模型置于 `entity`、请求置于 `dto`，安全与缓存使用辅助包；Mapper XML 在 auth 自己的边界内。更新 MyBatis 扫描及 `mapper/**/*.xml` 发现配置，并确保旧 Mapper 继续加载。新代码不导入 legacy 的 JwtProperties、BaseContext、User/Employee 或 Mapper。
 
 Spring Security 使用 stateless 新 API 链，覆盖 `/api/v1/**`，匿名白名单仅为已有 health 与三个凭证入口（店铺短信、消费者登录、员工登录）；refresh/logout 使用专门的 refresh 凭证验证分支而非无条件放行；其他新 API 默认认证，具体账号路由校验角色。覆盖其他路径的兼容链放行到原 MVC 拦截器，保留旧 `/admin`、`/user` 认证；不能启用 Boot 默认登录页而锁死旧接口。prod 保持文档关闭，dev/test 文档按现有规则开放。
 
@@ -237,22 +237,27 @@ Git Bash 可连续执行两次 `openssl rand -base64 32`，结果分别用于员
 
 实现时交付 `api/docs/auth/{requirements,api-design,data-design,manual-verification}.md`、OpenAPI 快照、旧接口兼容记录、测试说明与运行手册更新，README 只做导航。数据文档说明两表字段/索引、Redis key 与 TTL、种子/fixture 边界及备份恢复原则。
 
-### 9. 后续按业务价值推进，Agent 各亮点按最低前置启动
+### 9. 按队友业务模块与本人 Agent 范围拆分，按真实能力就绪接入
 
-“先认证”是本仓库当前合理顺序，不代表 Redis 本身是所有项目第一步。每个后续模块仍按需求、接口、表/索引、实现、测试与联调交付，不一次性造完所有表。当前 change 只产出路线，下面各行需要独立 change。
+完整认领清单见 [module-roadmap.md](../../../api/docs/architecture/module-roadmap.md)，依据原始 [PRD / 设计手稿](../../../docs/initialization/设计手稿.md) 与本次确认的分工。当前 change 只交付路线；下面均为后续目标，不新增其表或中间件。
 
-| 建议顺序 | 业务场景与模块 | 最低前置/交付边界 |
-| --- | --- | --- |
-| 1（本次） | 消费者首次短信登录建号、员工开通登录、退出；身份与 Redis 会话 | 已有基础设施/merchant；交付可信 Actor 和三层授权 |
-| 2 | 商户维护 3C 商品/SPU、SKU、规格与公开可售状态；商品/库存 | 认证；新电商表、公开字段和商户写入边界，库存先做只读可售查询与受控维护，不提前造复杂交易系统 |
-| 3 | 消费者查询本人订单/物流，客服查询本商户数据；订单/订单项快照、物流/轨迹 | 认证与商品/SKU；数据来自开发种子或商户后台，消费者不下单、不支付；提供可复用领域只读查询服务 |
-| 4 | 商户整理商品说明、售后政策和店铺规则；知识文档管理 | 认证；文档归属、版本/可见范围、文件格式/大小与最小同步解析边界；向量数据库由真正检索模块引入 |
-| 5 | 商品/售后知识问答；RAG 亮点 | 认证/公开商户边界 + 可用知识来源与检索入口；按需引 LangChain4j/Milvus，交付检索、引用与独立评测；不等待订单或 MQ 全部完成 |
-| 6 | 查商品、库存、本人订单与物流；Function Calling 亮点 | 认证 + 各 Tool 对应的真实领域查询服务 + 最小 Agent 调用入口；服务端身份注入、只读工具、脱敏、有限重试与降级；只上线具备前置的 Tool，不把直接查 Mapper 伪装成领域服务 |
-| 7 | 批量资料导入避免阻塞；RabbitMQ 文档任务亮点 | 知识文档 + 可独立调用的解析/切分/向量化流水线；从模块 4/5 分支即可开始，不依赖 FC；本模块才引 RabbitMQ，交付状态查询、确认、ACK、幂等、重试/死信/人工重投 |
-| 8 | 连续追问与历史恢复；会话/消息持久化 + Redis ChatMemory 亮点 | 认证 + MySQL 会话归属和完整消息历史 + 至少一条可用 Agent 对话链；可与 RAG/FC/MQ 并行，不要求前三亮点全部完成；交付 token 预算、摘要、过期恢复与独立评测 |
+auth 已迁移为 controller/service/mapper 三层包结构，数据模型在 entity、请求在 dto，安全/缓存/异常等使用对应辅助包。MapperScan、XML namespace/resultType、Springdoc/ControllerAdvice、测试引用同步迁移；HTTP 契约与安全行为保持。后续商品、库存、订单、物流及 Agent 相关业务域同样使用 controller/service/mapper，按需加 entity/dto/vo，不再用 api/application/domain/infrastructure 分层。具体类职责见 [packages.md](../../../api/docs/architecture/packages.md)。
 
-表中的编号是个人开发的建议串行路线，不是所有亮点相互等待的硬依赖。路线图还应注明：认证后可单独规划 PR CI，CI 不是商品/RAG 的业务前置；上线按用户进度另开 change。RAG、FC、MQ、ChatMemory 每项分别留真实测试/评测与 badcase，不预填提升百分比。Redis 登录会话、商品缓存、ChatMemory 是不同业务状态与 key 空间；RabbitMQ 的当前目标是文档任务，不沿用旧 README 的订单超时支付场景。
+| 可认领技术模块 | 负责人 | 完整模块交付 | 供 Agent 使用的真实能力 |
+| --- | --- | --- | --- |
+| 商品 | 队友 | 分类、商品/SPU、SKU、属性/兼容性、上下架、公开与本商户查询 | 商品检索/详情、SKU 规格与兼容性 Service |
+| 库存 | 队友 | SKU 库存、受控调整/流水、可售状态、并发/幂等 | 租户范围的 SKU 可售状态 Service |
+| 订单 | 队友 | 本人/本商户订单列表详情、订单项成交快照、dev 订单 | 服务端身份限定的订单查询 Service；不做消费者下单/支付 |
+| 物流 | 队友 | 按订单查询发货/承运商/轨迹、dev 物流 | 先验证订单归属的物流查询 Service；不强制真实物流 SDK |
+| Agent 及全部配套 | 本人 | RAG、FC、RabbitMQ 文档任务、Redis ChatMemory，以及知识库/文件、完整聊天历史/SSE、评测 | 复用队友真实 Service，身份注入、只读查询与脱敏；不直接调用 Mapper 或 HTTP 回调自己 |
+
+最终场景是商户上传说明书/兼容性/售后/店铺规则，消费者或客服在授权资料范围内问答；订单/库存/物流通过只读 Tool；批量 PDF/Word/Markdown 原文件可靠保存后，异步解析→切分→Embedding→Milvus 写入，MySQL 记录任务/单文档进度、幂等与失败，支持重试、死信、人工重投与部分成功，返回 taskId 供查询。Redis ChatMemory 与 MySQL 完整历史支撑连续追问。匿名只查公开商品/库存状态与公开知识，不能访问私有 Tool/历史；客服接管、人工回复、恢复 Agent 不列本次目标。
+
+认证后四个队友模块可同时开发，但集成依赖 SKU→库存、SKU→订单→物流。本人同时搭 Agent、知识文档/RAG、完整历史/ChatMemory、MQ 任务；不等队友全部完成，不强制测试替身对接。哪个模块的真实查询 Service、授权与必要字段可用，就接对应 Tool，不等其全部管理接口/前端结束。
+
+RAG 依赖本人知识文档/解析与基础模型入口，在本模块引 Embedding/Milvus，不等待订单或 MQ；FC 按商品/库存/订单/物流各自真实查询就绪接入；MQ 依赖本人文档与可执行处理阶段、MySQL 任务状态/幂等，不依赖 FC，但完整导入验收要有真实 Embedding/Milvus；ChatMemory 依赖认证、完整消息历史与一条基础对话链，不等待 RAG/FC/MQ 全部完成。四亮点没有强制串行链。
+
+每人按需求→API→表/索引→实现→测试/联调交付自己的完整模块与文档/演示数据；协调 Flyway 版本和 devdata 编号。本人分别保留四亮点的真实评测/故障证据与 badcase，不预填优化百分比。CI、真实短信、生产开通/部署及课程 WebService/Nginx/Redis 并发验收另行规划；消费者下单/支付、订单超时 MQ、复杂 RBAC、平台后台不混入当前范围，未来公开入口单独设计白名单/资料范围/限流。
 
 ## Risks / Trade-offs
 

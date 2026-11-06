@@ -1,9 +1,9 @@
 package com.gba.merchantbao.test;
 
-import com.gba.merchantbao.auth.domain.AuthInput;
-import com.gba.merchantbao.auth.domain.Tenant;
-import com.gba.merchantbao.auth.infrastructure.TenantResolver;
-import com.gba.merchantbao.auth.infrastructure.persistence.AuthTenantMapper;
+import com.gba.merchantbao.auth.util.AuthInput;
+import com.gba.merchantbao.auth.entity.Tenant;
+import com.gba.merchantbao.auth.service.TenantResolver;
+import com.gba.merchantbao.auth.mapper.AuthTenantMapper;
 import com.gba.merchantbao.common.privacy.PhoneMasker;
 import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.*;

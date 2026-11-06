@@ -2,7 +2,7 @@
 
 ## Purpose
 
-定义消费者首次短信登录建号、商户员工开通和登录、双 token 生命周期、退出及三层授权的目标行为。任务组 1 冻结契约；任务组 2 及之后仍待实现。
+定义消费者首次短信登录建号、商户员工开通和登录、双 token 生命周期、退出及三层授权的行为。实现与验收证据见 `api/docs/auth/verification.md`，任务状态以本 change 的 `tasks.md` 为准；不表示已发布生产。
 
 ## ADDED Requirements
 

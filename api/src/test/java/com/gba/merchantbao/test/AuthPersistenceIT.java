@@ -1,10 +1,12 @@
 package com.gba.merchantbao.test;
 
-import com.gba.merchantbao.auth.infrastructure.TenantResolver;
-import com.gba.merchantbao.auth.infrastructure.persistence.ConsumerAccountMapper;
-import com.gba.merchantbao.auth.infrastructure.persistence.ConsumerAccountRow;
-import com.gba.merchantbao.auth.infrastructure.persistence.StaffAccountMapper;
-import com.gba.merchantbao.auth.infrastructure.persistence.StaffAccountRow;
+import com.gba.merchantbao.auth.mapper.AuthTenantMapper;
+
+import com.gba.merchantbao.auth.service.TenantResolver;
+import com.gba.merchantbao.auth.mapper.ConsumerAccountMapper;
+import com.gba.merchantbao.auth.entity.ConsumerAccountRow;
+import com.gba.merchantbao.auth.mapper.StaffAccountMapper;
+import com.gba.merchantbao.auth.entity.StaffAccountRow;
 import com.gba.merchantbao.common.id.IdGenerator;
 import org.apache.ibatis.session.SqlSessionFactory;
 import org.junit.jupiter.api.Test;
@@ -155,7 +157,7 @@ class AuthPersistenceIT {
                 "uk_staff_merchant_phone");
         assertIndex(StaffAccountMapper.class, "findById", Map.of("merchantId", a, "accountId", one),
                 "PRIMARY", "uk_staff_merchant_id");
-        assertIndex(com.gba.merchantbao.auth.infrastructure.persistence.AuthTenantMapper.class,
+        assertIndex(com.gba.merchantbao.auth.mapper.AuthTenantMapper.class,
                 "findActiveByCode", Map.of("merchantCode", "M_3C_DEMO"), "uk_merchant_code");
         assertThat(staff.delete(a, child, 0)).isOne();
         assertThat(staff.delete(a, one, 1)).isOne();

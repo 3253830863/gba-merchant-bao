@@ -5,9 +5,11 @@
 ## 文档入口
 
 - [包结构与兼容边界](docs/architecture/packages.md)
+- [认证后可并行模块与四个 Agent 亮点前置](docs/architecture/module-roadmap.md)
 - [认证表、索引与数据边界](docs/auth/data-design.md)
 - [认证需求](docs/auth/requirements.md) / [九操作契约](docs/auth/api-design.md)
 - [认证开发账号与后端联调脚本](docs/auth/manual-verification.md)
+- [认证模块最终验收记录](docs/auth/verification.md)
 - [认证 Springdoc 快照（Apifox 导入）](../docs/api/auth-v1.openapi.yaml)
 - [自动化测试、容器隔离和日志目录](docs/testing/README.md)
 - [本地持久联调与 IDEA/Apifox](docs/deployment/local-development.md)

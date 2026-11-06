@@ -1,5 +1,10 @@
 package com.gba.merchantbao.test;
 
+import com.gba.merchantbao.auth.enums.AccountRole;
+import com.gba.merchantbao.auth.logging.AuthAudit;
+import com.gba.merchantbao.auth.security.Actor;
+import com.gba.merchantbao.auth.security.AuthPrincipal;
+
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.gba.merchantbao.common.privacy.PhoneMasker;
 import org.junit.jupiter.api.Test;
@@ -34,9 +39,9 @@ class JsonLoggingTest {
                     .info("phone={}", PhoneMasker.maskPhone("13800138000"));
             LoggerFactory.getLogger("com.gba.merchantbao.legacy.audit")
                     .info("audit-probe {}", marker);
-            com.gba.merchantbao.auth.infrastructure.AuthAudit.record("POST:/api/v1/auth/staff/login",
-                    new com.gba.merchantbao.auth.domain.Actor(new com.gba.merchantbao.auth.domain.AuthPrincipal(101,202,
-                            com.gba.merchantbao.auth.domain.AccountRole.MERCHANT_STAFF),"never-log-session"),0,12);
+            com.gba.merchantbao.auth.logging.AuthAudit.record("POST:/api/v1/auth/staff/login",
+                    new com.gba.merchantbao.auth.security.Actor(new com.gba.merchantbao.auth.security.AuthPrincipal(101,202,
+                            com.gba.merchantbao.auth.enums.AccountRole.MERCHANT_STAFF),"never-log-session"),0,12);
             var mapper = new ObjectMapper();
             String application = Files.readString(directory.resolve("application.json"));
             var event = application.lines().map(line -> {

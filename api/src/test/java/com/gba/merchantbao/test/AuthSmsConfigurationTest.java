@@ -1,9 +1,9 @@
 package com.gba.merchantbao.test;
 
-import com.gba.merchantbao.auth.application.SmsSender;
+import com.gba.merchantbao.auth.service.SmsSender;
 import com.gba.merchantbao.auth.config.AuthSmsConfiguration;
 import com.gba.merchantbao.auth.config.AuthSmsConfiguration.SmsPolicy;
-import com.gba.merchantbao.auth.domain.AuthError;
+import com.gba.merchantbao.auth.exception.AuthError;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import static org.assertj.core.api.Assertions.*;

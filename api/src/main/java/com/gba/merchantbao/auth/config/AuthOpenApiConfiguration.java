@@ -10,7 +10,7 @@ import java.util.Map;
 @Configuration(proxyBeanMethods=false)
 public class AuthOpenApiConfiguration {
     @Bean GroupedOpenApi authV1OpenApi() {
-        return GroupedOpenApi.builder().group("auth-v1").packagesToScan("com.gba.merchantbao.auth.api")
+        return GroupedOpenApi.builder().group("auth-v1").packagesToScan("com.gba.merchantbao.auth.controller")
             .pathsToMatch("/api/v1/auth/**","/api/v1/stores/*/auth/**","/api/v1/staff-accounts/**","/api/v1/consumer-accounts/**").addOpenApiCustomizer(api->{
                 api.getInfo().setDescription("认证实现快照：9 操作。Bearer access 或 refresh body；所有响应 no-store。生产首员工、真实短信及前端另行交付。");
                 api.setServers(java.util.List.of(new io.swagger.v3.oas.models.servers.Server().url("/")));

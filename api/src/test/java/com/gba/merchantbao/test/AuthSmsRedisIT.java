@@ -1,10 +1,14 @@
 package com.gba.merchantbao.test;
 
-import com.gba.merchantbao.auth.application.*;
+import com.gba.merchantbao.auth.cache.AuthRedis;
+import com.gba.merchantbao.auth.service.AuthRateLimiter;
+import com.gba.merchantbao.auth.service.SmsChallengeService;
+import com.gba.merchantbao.auth.service.SmsSender;
+import com.gba.merchantbao.auth.util.AuthCrypto;
+
 import com.gba.merchantbao.auth.config.AuthLimits;
 import com.gba.merchantbao.auth.config.AuthSmsConfiguration.SmsPolicy;
-import com.gba.merchantbao.auth.domain.AuthError;
-import com.gba.merchantbao.auth.infrastructure.*;
+import com.gba.merchantbao.auth.exception.AuthError;
 import com.gba.merchantbao.legacy.config.RedisConfiguration;
 import org.junit.jupiter.api.*;
 import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;

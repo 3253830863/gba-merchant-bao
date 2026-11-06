@@ -1,9 +1,18 @@
 package com.gba.merchantbao.test;
 
-import com.gba.merchantbao.auth.application.*;
-import com.gba.merchantbao.auth.domain.*;
-import com.gba.merchantbao.auth.infrastructure.TenantResolver;
-import com.gba.merchantbao.auth.infrastructure.persistence.*;
+import com.gba.merchantbao.auth.entity.StaffAccountRow;
+import com.gba.merchantbao.auth.entity.Tenant;
+import com.gba.merchantbao.auth.enums.AccountRole;
+import com.gba.merchantbao.auth.exception.AuthError;
+import com.gba.merchantbao.auth.mapper.ConsumerAccountMapper;
+import com.gba.merchantbao.auth.mapper.StaffAccountMapper;
+import com.gba.merchantbao.auth.security.AuthPrincipal;
+import com.gba.merchantbao.auth.service.AccountService;
+import com.gba.merchantbao.auth.service.AuthRateLimiter;
+import com.gba.merchantbao.auth.service.SessionService;
+import com.gba.merchantbao.auth.service.SmsChallengeService;
+
+import com.gba.merchantbao.auth.service.TenantResolver;
 import com.gba.merchantbao.common.id.IdGenerator;
 import org.junit.jupiter.api.*;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;

@@ -1,10 +1,12 @@
 package com.gba.merchantbao.auth.config;
 
+import com.gba.merchantbao.auth.service.AuthRateLimiter;
+import com.gba.merchantbao.auth.service.SessionService;
+
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.gba.merchantbao.auth.api.AuthHttpErrors;
-import com.gba.merchantbao.auth.application.*;
-import com.gba.merchantbao.auth.domain.AuthError;
-import com.gba.merchantbao.auth.infrastructure.AuthSecurityFilter;
+import com.gba.merchantbao.auth.handler.AuthHttpErrors;
+import com.gba.merchantbao.auth.exception.AuthError;
+import com.gba.merchantbao.auth.security.AuthSecurityFilter;
 import jakarta.validation.Validator;
 import org.springframework.context.annotation.*;
 import org.springframework.core.annotation.Order;

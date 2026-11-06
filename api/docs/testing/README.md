@@ -62,10 +62,10 @@ AuthFlowIT 使用可控时间验证消费者/员工 idle 与 absolute、active �
 
 AuthDevManualIT 显式启用 dev+test 与专用 namespace、动态临时容器，实际执行 [后端联调脚本](../auth/manual-verification.md) 并导出 Springdoc 到 target。它验证 devdata 重跑不覆盖 hash/status，正常 test/prod locations 排除 devdata；常规 fixture 仍只由 @Sql 提供。故障注入使用测试 spy，不停共享开发中间件。
 
-不清共享表、不 flush Redis、不恢复真实卷。容器销毁清理数据；用例仅操作自己的认证测试前缀。旧 HTTP、上下文清理与日志分流分别由 HttpClientTest、AuthContextTest、JsonLoggingTest 验证。完整验收已顺延到第 9 节，定向结果不能替代全量 test/clean verify。
+不清共享表、不 flush Redis、不恢复真实卷。容器销毁清理数据；用例仅操作自己的认证测试前缀。旧 HTTP、上下文清理与日志分流分别由 HttpClientTest、AuthContextTest、JsonLoggingTest 验证。第 9 节全量 test/clean verify 的独立结果见 [认证验收记录](../auth/verification.md)，不以定向结果替代全量验收。
 
 ## 种子迁移定向验证（第 8 节）
 
 命令与维护边界见 [开发种子升级](../deployment/dev-seed-upgrade.md)。`DevSeedMigrationIT` 使用独立 MySQL 数据库与真实 Flyway 11.7.2，覆盖排序、无变化重启、显式补种保留人工修改、缺依赖/身份冲突、Spring 启动失败、并发迁移、旧租户 R/两份旧 R 的受控 repair，以及真实 mysqldump 恢复核对和 CLI 执行门槛。旧 SQL 快照只保存在 test resources 的 upgrade-history，运行期不加载。
 
-Maven 不会清除改名资源；本节定向验证前仅移除 target/classes 下两份旧名 R 和旧回调 class 的确切生成文件，不能将残留旧资源带入测试；维护脚本已执行相同检查。第 9 节仍负责 clean verify。本节自动化不操作开发卷，已有 Docker Compose 开发库升级属于独立、显式维护步骤，不把定向测试通过等同于真实库已升级。
+Maven 不会清除改名资源；本节定向验证前仅移除 target/classes 下两份旧名 R 和旧回调 class 的确切生成文件，不能将残留旧资源带入测试；维护脚本已执行相同检查。第 9 节 clean verify 的结果见 [认证验收记录](../auth/verification.md)。本节自动化不操作开发卷，已有 Docker Compose 开发库升级属于独立、显式维护步骤，不把定向测试通过等同于真实库已升级。
