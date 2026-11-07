@@ -26,6 +26,8 @@ public class ShipmentSummary {
     private String trackingNo;
 
     private String lastEventTime;
+
+    @XmlElement(name = "track")
     private List<TrackSummary> tracks = new ArrayList<>();
 
     public ShipmentSummary() {

@@ -26,6 +26,6 @@ public interface ShipmentWebServicePort {
      */
     @WebMethod(operationName = "queryShipmentByOrderNo", action = "queryShipmentByOrderNo")
     ShipmentSummary queryShipmentByOrderNo(
-            @WebParam(name = "merchantCode", targetNamespace = ShipmentWebServicePort.NAMESPACE) String merchantCode,
-            @WebParam(name = "orderNo", targetNamespace = ShipmentWebServicePort.NAMESPACE) String orderNo);
+            @WebParam(name = "merchantCode") String merchantCode,
+            @WebParam(name = "orderNo") String orderNo) throws ShipmentWebServiceFault;
 }

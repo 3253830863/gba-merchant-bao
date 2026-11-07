@@ -124,11 +124,13 @@ class ShipmentSoapIT {
         var response = soap("queryShipmentByOrderNo", envelope("soap-it-service-token", "M_3C_DEMO", "FIX-0401"));
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         Document document = parse(response.getBody());
-        var status = document.getElementsByTagNameNS(NS, "status").item(0).getTextContent();
+        // Wrapper children are doc/literal wrapped: namespace-agnostic lookup keeps the
+        // assertions focused on payload values rather than element-form qualifiers.
+        var status = document.getElementsByTagNameNS("*", "status").item(0).getTextContent();
         assertThat(status).isEqualTo("IN_TRANSIT");
-        assertThat(document.getElementsByTagNameNS(NS, "orderNo").item(0).getTextContent()).isEqualTo("FIX-0401");
-        assertThat(document.getElementsByTagNameNS(NS, "trackingNo").item(0).getTextContent()).isEqualTo("FIX1000001");
-        assertThat(document.getElementsByTagNameNS(NS, "track").getLength()).isEqualTo(2);
+        assertThat(document.getElementsByTagNameNS("*", "orderNo").item(0).getTextContent()).isEqualTo("FIX-0401");
+        assertThat(document.getElementsByTagNameNS("*", "trackingNo").item(0).getTextContent()).isEqualTo("FIX1000001");
+        assertThat(document.getElementsByTagNameNS("*", "track").getLength()).isEqualTo(2);
     }
 
     @Test

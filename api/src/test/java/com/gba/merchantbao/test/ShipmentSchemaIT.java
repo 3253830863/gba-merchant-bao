@@ -48,12 +48,16 @@ class ShipmentSchemaIT {
     void rollback() throws Exception {connection.rollback();connection.setAutoCommit(true);}
 
     private void insertShipment(long id, long merchantId, long orderId, String status) throws Exception {
+        insertShipment(id, merchantId, orderId, status, "TRK" + id);
+    }
+
+    private void insertShipment(long id, long merchantId, long orderId, String status, String trackingNo) throws Exception {
         try (var ps = connection.prepareStatement(
                 "INSERT INTO shipment (id, merchant_id, order_id, order_no, status, carrier_name, tracking_no) "
                         + "VALUES (?,?,?,?,?,?,?)")) {
             ps.setLong(1, id);ps.setLong(2, merchantId);ps.setLong(3, orderId);
             ps.setString(4, "SO-" + id);ps.setString(5, status);
-            ps.setString(6, "顺丰速运");ps.setString(7, "TRK" + id);
+            ps.setString(6, "顺丰速运");ps.setString(7, trackingNo);
             ps.executeUpdate();
         }
     }
@@ -68,7 +72,9 @@ class ShipmentSchemaIT {
     @Test @Order(2)
     void trackingNumberIsUniquePerMerchant() throws Exception {
         insertShipment(6011, 1000000000000001L, 7011, "IN_TRANSIT");
-        assertThatThrownBy(() -> insertShipment(6012, 1000000000000001L, 7012, "IN_TRANSIT"))
+        // Same waybill reused within one tenant violates uk_shipment_merchant_tracking;
+        // the cross-tenant reuse of the same waybill is covered by @Order(5).
+        assertThatThrownBy(() -> insertShipment(6012, 1000000000000001L, 7012, "IN_TRANSIT", "TRK6011"))
                 .isInstanceOf(SQLException.class);
     }
 

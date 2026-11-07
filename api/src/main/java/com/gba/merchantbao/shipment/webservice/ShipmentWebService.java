@@ -5,18 +5,12 @@ import com.gba.merchantbao.shipment.dto.ShipmentView;
 import com.gba.merchantbao.shipment.service.ShipmentQueryService;
 
 import jakarta.jws.WebService;
-import jakarta.xml.soap.SOAPConstants;
-import jakarta.xml.soap.SOAPException;
-import jakarta.xml.soap.SOAPFactory;
-import jakarta.xml.soap.SOAPFault;
-import jakarta.xml.ws.soap.SOAPFaultException;
-
-import javax.xml.namespace.QName;
 
 /**
  * SOAP endpoint implementation published at /services/shipment (WSDL: /services/shipment?wsdl).
- * Credential validation is enforced by ShipmentServiceTokenHandler before any business call;
- * data comes from the same ShipmentQueryService as REST.
+ * Credential validation is enforced by ShipmentServiceTokenInterceptor before any business call;
+ * data comes from the same ShipmentQueryService as REST. Faults use the standard JAX-WS
+ * {@link ShipmentWebServiceFault} mapping (no SAAJ dependency).
  */
 @WebService(serviceName = "ShipmentWebService", portName = "ShipmentWebServicePort",
         targetNamespace = ShipmentWebServicePort.NAMESPACE,
@@ -36,30 +30,18 @@ public class ShipmentWebService implements ShipmentWebServicePort {
     }
 
     @Override
-    public ShipmentSummary queryShipmentByOrderNo(String merchantCode, String orderNo) {
+    public ShipmentSummary queryShipmentByOrderNo(String merchantCode, String orderNo) throws ShipmentWebServiceFault {
         if (merchantCode == null || merchantCode.isBlank() || orderNo == null || orderNo.isBlank()) {
-            throw fault("invalid argument");
+            throw new ShipmentWebServiceFault("INVALID_ARGUMENT", "invalid argument");
         }
         try {
             ShipmentView view = shipments.getForMerchantCode(merchantCode.trim(), orderNo.trim());
             return ShipmentSummary.from(view);
         } catch (AuthError e) {
             if (e.status() == 404) {
-                throw fault("NOT_FOUND");
+                throw new ShipmentWebServiceFault("NOT_FOUND", "NOT_FOUND");
             }
-            throw fault("internal server error");
-        }
-    }
-
-    private static SOAPFaultException fault(String message) {
-        try {
-            SOAPFactory factory = SOAPFactory.newInstance();
-            SOAPFault fault = factory.createFault(message, SOAPConstants.SOAP_SENDER_FAULT);
-            fault.addDetail().addDetailEntry(
-                    new QName(ShipmentWebServicePort.NAMESPACE, message, "shipment"));
-            return new SOAPFaultException(fault);
-        } catch (SOAPException e) {
-            throw new IllegalStateException("Unable to build SOAP fault", e);
+            throw new IllegalStateException("internal server error");
         }
     }
 }
