@@ -1,6 +1,6 @@
 # 物流模块数据设计（评审稿）
 
-> 状态：2026-11-07 契约评审稿。实际 `V5__shipment_tables.sql` 与 devdata 在实现阶段落盘，编号经团队协调；本文冻结表/字段/索引设计供评审。UTC 时间、Snowflake 主键、字符串化输出与 auth 模块一致。
+> 状态：2026-11-07 评审稿已实现并落盘：`V5__shipment_tables.sql`（编号与订单/库存模块协调后如调整，迁移文件名随 tasks 1.3 同步）与 `R__030_shipment_demo_data.sql`（devdata 编号登记见 db/devdata/README.md）。UTC 时间、Snowflake 主键、字符串化输出与 auth 模块一致。
 
 ## 1. 表：shipment（一单一运单）
 
@@ -24,7 +24,8 @@
 | 索引 | 服务于 |
 | --- | --- |
 | `UNIQUE(merchant_id, order_id)` | 按订单查运单（REST 主路径）、一单一运单约束 |
-| `UNIQUE(merchant_id, tracking_no)` | SOAP 按 merchantCode+orderNo 之外的运单唯一性防重 |
+| `UNIQUE(merchant_id, tracking_no)` | 运单号租户内唯一防重 |
+| `KEY(merchant_id, order_no)` | SOAP 按商户编码+订单号查询 |
 
 ## 2. 表：shipment_track（轨迹事件，只追加）
 
