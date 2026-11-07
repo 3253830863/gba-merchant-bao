@@ -1,0 +1,230 @@
+openapi: 3.1.0
+info:
+  title: Merchant Shipment API
+  description: 物流模块契约评审稿（2026-11-07，未实现）。按已授权订单查询物流状态/承运商/运单/轨迹；只读单操作。SOAP WebService 契约见 api/docs/shipment/api-design.md。实现完成后以 Springdoc 导出替换本文件。
+  version: v1
+servers:
+- url: /
+tags:
+- name: shipment-v1
+  description: "Read-only shipment query; Bearer access required. Errors reuse the\
+    \ common segments: 400/10001, 401/10002, 403/10003, 404/10004 (missing, cross-tenant\
+    \ and foreign orders are indistinguishable), 500/10500. IDs are strings and times\
+    \ are UTC. 12xxx reserved for future shipment-specific codes."
+paths:
+  /api/v1/orders/{orderId}/shipment:
+    get:
+      tags:
+      - shipment-v1
+      summary: 按订单查询物流
+      description: |
+        消费者限本人订单，员工限本商户订单；订单归属由服务端按可信 Actor 校验。
+        订单不存在、跨租户、非本人统一 404/10004。订单无物流记录时返回 200 且
+        status=NOT_SHIPPED、tracks 为空。estimatedDeliveryAt 仅数据提供时返回。
+        不提供按运单号（trackingNo）的独立查询入口。
+      operationId: getOrderShipment
+      parameters:
+      - name: orderId
+        in: path
+        required: true
+        description: 订单 ID（下单时由订单模块生成的稳定标识）
+        schema:
+          type: string
+      responses:
+        "200":
+          description: OK（含未发货业务态）
+          headers:
+            X-Request-Id:
+              description: 与 envelope.requestId 相同
+              schema:
+                type: string
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponseShipment"
+        "400":
+          description: 10001 参数无效（orderId 非法）
+          headers:
+            X-Request-Id:
+              description: 与 envelope.requestId 相同
+              schema:
+                type: string
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ShipmentErrorEnvelope"
+        "401":
+          description: 10002 会话无效或缺失
+          headers:
+            X-Request-Id:
+              description: 与 envelope.requestId 相同
+              schema:
+                type: string
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ShipmentErrorEnvelope"
+        "403":
+          description: 10003 角色越权（如消费者访问员工专属能力）
+          headers:
+            X-Request-Id:
+              description: 与 envelope.requestId 相同
+              schema:
+                type: string
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ShipmentErrorEnvelope"
+        "404":
+          description: 10004 订单不存在、跨租户或非本人（三者不可区分）
+          headers:
+            X-Request-Id:
+              description: 与 envelope.requestId 相同
+              schema:
+                type: string
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ShipmentErrorEnvelope"
+        "500":
+          description: 10500 非预期错误
+          headers:
+            X-Request-Id:
+              description: 与 envelope.requestId 相同
+              schema:
+                type: string
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ShipmentErrorEnvelope"
+components:
+  schemas:
+    ApiResponseShipment:
+      type: object
+      description: 统一 envelope {code, message, data, requestId}；成功 code=0
+      required:
+      - code
+      - message
+      - requestId
+      properties:
+        code:
+          type: integer
+          format: int32
+          description: 0 表示成功；失败复用公共错误码段
+        message:
+          type: string
+        data:
+          $ref: "#/components/schemas/Shipment"
+        requestId:
+          type: string
+          description: 与响应头 X-Request-Id 相同
+    ShipmentErrorEnvelope:
+      type: object
+      required:
+      - code
+      - message
+      - requestId
+      properties:
+        code:
+          type: integer
+          format: int32
+          description: 公共段 10001/10002/10003/10004/10500；12xxx 为物流预留段
+        message:
+          type: string
+        data:
+          nullable: true
+        requestId:
+          type: string
+    Shipment:
+      type: object
+      description: 订单物流摘要；未发货时 status=NOT_SHIPPED 且承运商/运单/轨迹为空
+      required:
+      - orderId
+      - status
+      - tracks
+      properties:
+        orderId:
+          type: string
+          description: 路径中的订单 ID
+        orderNo:
+          type: string
+          nullable: true
+          description: 订单号快照，仅物流记录存在时返回
+        status:
+          type: string
+          enum:
+          - NOT_SHIPPED
+          - IN_TRANSIT
+          - DELIVERED
+        carrierName:
+          type: string
+          nullable: true
+          description: 承运商展示名
+        carrierCode:
+          type: string
+          nullable: true
+          description: 承运商编码
+        trackingNo:
+          type: string
+          nullable: true
+          description: 运单号；仅已授权响应中出现，无独立查询入口
+        estimatedDeliveryAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: 预计送达；仅数据提供时返回，不编造
+        deliveredAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: 签收时间；仅已签收且有数据时返回
+        tracks:
+          type: array
+          description: 轨迹事件，按 eventTime 升序；NOT_SHIPPED 时为空数组
+          items:
+            $ref: "#/components/schemas/Track"
+    Track:
+      type: object
+      required:
+      - eventTime
+      - status
+      - description
+      properties:
+        eventTime:
+          type: string
+          format: date-time
+          description: 事件时间（UTC）
+        status:
+          type: string
+          description: 事件时状态（NOT_SHIPPED/IN_TRANSIT/DELIVERED）
+        description:
+          type: string
+          description: 轨迹描述（脱敏后）
+        location:
+          type: string
+          nullable: true
+          description: 事件地点，可空
