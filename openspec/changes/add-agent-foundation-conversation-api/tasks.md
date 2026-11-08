@@ -1,19 +1,19 @@
 # Tasks
 
-本 change 交付 Agent 基础与对话接口；六项运行时子技术见 design.md 第 1 节。以下分组是开发与交付顺序，OpenAPI、Flyway、TDD、Apifox 和验收不另算运行时子技术。所有任务尚未实施；各实现项均按红→绿→重构推进，并同时交付测试和文档。
+本 change 交付 Agent 基础与对话接口；六项运行时子技术见 design.md 第 1 节。以下分组是开发与交付顺序，OpenAPI、Flyway、TDD、Apifox 和验收不另算运行时子技术。进度以各任务勾选为准；各实现项均按红→绿→重构推进，并同时交付测试和文档。
 
 ## 1. Requirements and API contract
 
-- [ ] 1.1 在 `api/docs/agent/requirements.md` 整理消费者/员工本人问答、消息历史和错误场景的需求与验收矩阵，标明四个亮点、完整前端和 Nginx 实际部署的后续边界；通过逐项映射两份 spec 场景验证没有混入 Redis ChatMemory、匿名入口或客服接管。
-- [ ] 1.2 在 `api/docs/agent/api-design.md` 冻结六个操作的路径、方法、字段、分页、ID/时间格式、Bearer 权限、HTTP/业务错误码和 POST 消息的 SSE/幂等 JSON 两种响应；用正常、跨租户、他人、busy、归档、幂等冲突示例检查契约完整性。
-- [ ] 1.3 在接口文档中定义 start/token/done/error 公共字段、顺序、终态、usage 缺失语义及后续 citation/tool_call 扩展，说明 fetch POST、CORS、断开后查历史且不重放；通过请求/响应样例确认前端无需持有模型 API key。
+- [x] 1.1 在 `api/docs/agent/requirements.md` 整理消费者/员工本人问答、消息历史和错误场景的需求与验收矩阵，标明四个亮点、完整前端和 Nginx 实际部署的后续边界；通过逐项映射两份 spec 场景验证没有混入 Redis ChatMemory、匿名入口或客服接管。
+- [x] 1.2 在 `api/docs/agent/api-design.md` 冻结六个操作的路径、方法、字段、分页、ID/时间格式、Bearer 权限、HTTP/业务错误码和 POST 消息的 SSE/幂等 JSON 两种响应；用正常、跨租户、他人、busy、归档、幂等冲突示例检查契约完整性。
+- [x] 1.3 在接口文档中定义 start/token/done/error 公共字段、顺序、终态、usage 缺失语义及后续 citation/tool_call 扩展，说明 fetch POST、CORS、断开后查历史且不重放；通过请求/响应样例确认前端无需持有模型 API key。
 
 ## 2. Flyway schema and persistence
 
-- [ ] 2.1 在 `api/docs/agent/data-design.md` 完成 chat_session/chat_message 字段、主外键、租户优先索引、USER 幂等唯一键、消息序号和共享运行权设计；按当前 V4 暂定下一版 V5，并写明模块汇合只协调未执行编号，通过与现有迁移及数据约定对照验证。
-- [ ] 2.2 先编写 MySQL/Flyway 失败用例，再新增 V5 结构迁移，覆盖从空库及 V4 升级、合法状态、复合租户外键和 clientMessageId 唯一性；以隔离 MySQL Testcontainer 验证通过，保持 V1–V4 校验和不变，不操作 dev 数据卷。
-- [ ] 2.3 先编写 Mapper 集成测试，再实现实体、MyBatis SQL 和稳定分页，查询/更新同时限定商户、会话及必要本人角色/账号；按稳定业务标识验证同租户他人和跨租户不能读写，消息序号排序正确，不使用整表总数证明用例结果。
-- [ ] 2.4 为自动测试在 `src/test/resources/db/fixture` 增加两租户、多本人会话及消息数据并显式用 `@Sql` 加载，为 dev 单独增加按现有编号顺延的最小演示数据；验证重复执行不覆盖人工修改、test/prod 不加载 devdata，数据使用和约束同步写入数据设计文档。
+- [x] 2.1 在 `api/docs/agent/data-design.md` 完成 chat_session/chat_message 字段、主外键、租户优先索引、USER 幂等唯一键、消息序号和共享运行权设计；按当前 V4 暂定下一版 V5，并写明模块汇合只协调未执行编号，通过与现有迁移及数据约定对照验证。
+- [x] 2.2 先编写 MySQL/Flyway 失败用例，再新增 V5 结构迁移，覆盖从空库及 V4 升级、合法状态、复合租户外键和 clientMessageId 唯一性；以隔离 MySQL Testcontainer 验证通过，保持 V1–V4 校验和不变，不操作 dev 数据卷。
+- [x] 2.3 先编写 Mapper 集成测试，再实现实体、MyBatis SQL 和稳定分页，查询/更新同时限定商户、会话及必要本人角色/账号；按稳定业务标识验证同租户他人和跨租户不能读写，消息序号排序正确，不使用整表总数证明用例结果。
+- [x] 2.4 为自动测试在 `src/test/resources/db/fixture` 增加两租户、多本人会话及消息数据并显式用 `@Sql` 加载，为 dev 单独增加按现有编号顺延的最小演示数据；验证重复执行不覆盖人工修改、test/prod 不加载 devdata，数据使用和约束同步写入数据设计文档。
 
 ## 3. LangChain4j model integration and context
 

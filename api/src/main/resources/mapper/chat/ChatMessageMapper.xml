@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.gba.merchantbao.chat.mapper.ChatMessageMapper">
+  <sql id="columns">m.id,m.merchant_id,m.session_id,m.message_seq,m.sender_type,m.sender_account_id,
+    m.client_message_id,m.content,m.status,m.run_id,m.error_code,m.prompt_version,m.model_service_label,
+    m.model_name,m.input_tokens,m.output_tokens,m.created_at,m.completed_at</sql>
+  <sql id="owner">s.merchant_id=#{owner.merchantId} AND s.owner_account_id=#{owner.accountId} AND s.owner_role=#{owner.role}</sql>
+  <sql id="ownedMessages">FROM chat_message m JOIN chat_session s ON s.merchant_id=m.merchant_id AND s.id=m.session_id
+    WHERE <include refid="owner"/> AND m.merchant_id=#{owner.merchantId} AND m.session_id=#{sessionId}</sql>
+  <insert id="insertOwned">
+    INSERT INTO chat_message (id,merchant_id,session_id,message_seq,sender_type,sender_account_id,client_message_id,
+      content,status,run_id,error_code,prompt_version,model_service_label,model_name,input_tokens,output_tokens,created_at,completed_at)
+    SELECT #{message.id},#{message.merchantId},#{message.sessionId},#{message.messageSeq},#{message.senderType},
+      #{message.senderAccountId},#{message.clientMessageId},#{message.content},#{message.status},#{message.runId},
+      #{message.errorCode},#{message.promptVersion},#{message.modelServiceLabel},#{message.modelName},
+      #{message.inputTokens},#{message.outputTokens},#{message.createdAt},#{message.completedAt}
+    FROM chat_session s WHERE <include refid="owner"/> AND s.id=#{message.sessionId}
+      AND s.merchant_id=#{message.merchantId} AND s.active_run_id=#{message.runId} AND s.status='ACTIVE'
+      AND ((#{message.senderType}='USER' AND #{message.senderAccountId}=#{owner.accountId} AND #{message.messageSeq}=s.next_message_seq-2)
+        OR (#{message.senderType}='ASSISTANT' AND #{message.messageSeq}=s.next_message_seq-1))
+  </insert>
+  <select id="findOwned" resultType="com.gba.merchantbao.chat.entity.ChatMessageRow" flushCache="true" useCache="false">
+    SELECT <include refid="columns"/> <include refid="ownedMessages"/> AND m.id=#{messageId}
+  </select>
+  <select id="findUserByClientId" resultType="com.gba.merchantbao.chat.entity.ChatMessageRow" flushCache="true" useCache="false">
+    SELECT <include refid="columns"/> <include refid="ownedMessages"/>
+      AND m.sender_type='USER' AND m.client_message_id=#{clientMessageId}
+  </select>
+  <select id="pageOwned" resultType="com.gba.merchantbao.chat.entity.ChatMessageRow" flushCache="true" useCache="false">
+    <bind name="pageSize" value="size > 100 ? 100 : (size &lt; 1 ? 1 : size)"/>
+    SELECT <include refid="columns"/> <include refid="ownedMessages"/> AND m.message_seq > #{afterSeq}
+    ORDER BY m.message_seq ASC LIMIT #{pageSize}
+  </select>
+  <update id="finishOwned">
+    UPDATE chat_message m JOIN chat_session s ON s.merchant_id=m.merchant_id AND s.id=m.session_id
+    SET m.status=#{status},m.content=#{content},m.error_code=#{errorCode},m.input_tokens=#{inputTokens},
+      m.output_tokens=#{outputTokens},m.completed_at=#{now}
+    WHERE <include refid="owner"/> AND m.merchant_id=#{owner.merchantId} AND m.session_id=#{sessionId}
+      AND m.id=#{messageId} AND m.run_id=#{runId} AND s.active_run_id=#{runId}
+      AND m.sender_type='ASSISTANT' AND m.status IN ('STARTED','STREAMING')
+      AND ((#{status}='TIMED_OUT' AND s.run_deadline_at &lt;= #{now})
+        OR (#{status} IN ('COMPLETED','CANCELLED','FAILED') AND s.run_deadline_at > #{now}))
+  </update>
+</mapper>
