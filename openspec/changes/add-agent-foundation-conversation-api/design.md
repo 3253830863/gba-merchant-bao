@@ -57,15 +57,16 @@
 ```yaml
 merchant:
   agent:
-    enabled: ${AGENT_ENABLED:false}
-    base-url: ${AGENT_BASE_URL}
-    api-key: ${AGENT_API_KEY}
-    model: ${AGENT_MODEL}
+    enabled: false
+    base-url: https://note3-prev-api.askdiandian.com/v1
+    api-key: ""
+    api-key-header: api-key
+    model: dots3-note-prev
 ```
 
 base-url 定义为 SDK 使用的 API 根地址（是否包含 /v1 以服务商实际路径为准），不填写 /chat/completions 终端路径；用本地 HTTP stub 验证最终请求路径，避免重复追加路径。仅允许应用配置指定地址，客户端不能指定模型 URL。兼容协议不保证所有供应商扩展能力一致，本期不依赖 reasoning_content 等专有字段。
 
-温度、输出上限、Prompt 版本、连接/首 token/总超时、最多重试次数、输入预算和分页上限也纳入配置。启用时校验配置，禁用时已有认证/基础功能不要求模型凭证、Agent 接口返回稳定的不可用错误。dev 真实配置放忽略的 application-dev.yml 或环境变量，prod 只使用环境注入；密钥、完整配置和消息正文不得出现在日志中。部署切换 base-url/api-key/model 后重启生效；单次部署只有一个活动供应商。
+温度、输出上限、Prompt 版本、连接/首 token/总超时、最多重试次数、输入预算和分页上限也纳入配置。启用时校验配置，禁用时已有认证/基础功能不要求模型凭证、Agent 接口返回稳定的不可用错误。dev 真实配置直接放忽略的 application-dev.yml，根 .env 只供 Compose 使用，不要求 IDEA 设置额外环境变量；prod 沿用独立部署配置；密钥、完整配置和消息正文不得出现在日志中。鉴权头默认 Authorization Bearer；dots 等兼容服务按文档设 api-key-header: api-key，由同一 SDK 的 customHeaders 发送原始 key。部署切换 base-url/api-key/model 及所需鉴权头后重启生效；单次部署只有一个活动供应商。
 
 ### 3. 上下文只做必要的有界组装
 
@@ -132,7 +133,7 @@ ACTIVE/ARCHIVED 表示会话生命周期，与运行状态分开；归档运行�
 | 测试层 | 断言对象 |
 | --- | --- |
 | 模型替身单测 | 给定输入历史和预设 delta，精确断言上下文选择、顺序、最终文本、取消与失败状态 |
-| OpenAI 兼容适配契约 | 本地 HTTP stub 检查 /chat/completions 路径、Bearer、model、roles、stream、分片解析及错误映射，不访问真实 API |
+| OpenAI 兼容适配契约 | 本地 HTTP stub 检查 /chat/completions 路径、默认 Bearer/可配置 api-key 头、model、roles、stream、分片解析及错误映射，不访问真实 API |
 | MySQL/认证集成 | 按 merchant/session/clientMessageId/runId 定位记录，断言唯一性、归属、内容与终态；不用整表总数或空表假设 |
 | HTTP/SSE | 状态码、JSON schema、Content-Type、事件顺序、公共标识、终态互斥和已落库文本；按 run 断言事件数量是合理的 |
 | 真实模型 Apifox | 实际协议联通、非空回答、完成状态、历史一致和隐私；不精确匹配固定自然语言，也不宣称完成 RAG/Tool 事实评测 |

@@ -10,6 +10,10 @@ import java.util.List;
 /** All access joins the owned session, including asynchronous callback updates. */
 @Mapper
 public interface ChatMessageMapper {
+    ChatMessageRow findAssistantByRun(@Param("owner") ChatOwner owner,@Param("sessionId") long sessionId,@Param("runId") long runId);
+    int markStreaming(@Param("owner") ChatOwner owner,@Param("sessionId") long sessionId,@Param("messageId") long messageId,
+                      @Param("runId") long runId,@Param("now") LocalDateTime now);
+    List<ChatMessageRow> recentSuccessfulOwned(@Param("owner") ChatOwner owner,@Param("sessionId") long sessionId,@Param("size") int size);
     /** Insert in the same short transaction as acquireRun; zero means ownership/run/sequence mismatch. */
     int insertOwned(@Param("owner") ChatOwner owner, @Param("message") ChatMessageRow message);
     ChatMessageRow findOwned(@Param("owner") ChatOwner owner, @Param("sessionId") long sessionId,

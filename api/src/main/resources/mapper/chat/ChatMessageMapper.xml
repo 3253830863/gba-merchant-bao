@@ -7,6 +7,23 @@
   <sql id="owner">s.merchant_id=#{owner.merchantId} AND s.owner_account_id=#{owner.accountId} AND s.owner_role=#{owner.role}</sql>
   <sql id="ownedMessages">FROM chat_message m JOIN chat_session s ON s.merchant_id=m.merchant_id AND s.id=m.session_id
     WHERE <include refid="owner"/> AND m.merchant_id=#{owner.merchantId} AND m.session_id=#{sessionId}</sql>
+  <select id="findAssistantByRun" resultType="com.gba.merchantbao.chat.entity.ChatMessageRow" flushCache="true" useCache="false">
+    SELECT <include refid="columns"/> <include refid="ownedMessages"/> AND m.run_id=#{runId} AND m.sender_type='ASSISTANT'
+  </select>
+  <update id="markStreaming">
+    UPDATE chat_message m JOIN chat_session s ON s.merchant_id=m.merchant_id AND s.id=m.session_id
+      SET m.status='STREAMING'
+      WHERE <include refid="owner"/> AND m.merchant_id=#{owner.merchantId} AND m.session_id=#{sessionId}
+        AND m.id=#{messageId} AND m.run_id=#{runId} AND m.status='STARTED' AND s.active_run_id=#{runId}
+        AND s.run_deadline_at > #{now}
+  </update>
+  <select id="recentSuccessfulOwned" resultType="com.gba.merchantbao.chat.entity.ChatMessageRow" flushCache="true" useCache="false">
+    SELECT <include refid="columns"/> <include refid="ownedMessages"/>
+      AND m.status='COMPLETED' AND EXISTS (SELECT 1 FROM chat_message a
+        WHERE a.merchant_id=m.merchant_id AND a.session_id=m.session_id AND a.run_id=m.run_id
+          AND a.sender_type='ASSISTANT' AND a.status='COMPLETED')
+    ORDER BY m.message_seq DESC LIMIT #{size}
+  </select>
   <insert id="insertOwned">
     INSERT INTO chat_message (id,merchant_id,session_id,message_seq,sender_type,sender_account_id,client_message_id,
       content,status,run_id,error_code,prompt_version,model_service_label,model_name,input_tokens,output_tokens,created_at,completed_at)

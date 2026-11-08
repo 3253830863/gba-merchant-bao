@@ -1,6 +1,6 @@
 # Agent 基础与对话接口契约
 
-状态：`add-agent-foundation-conversation-api` Tasks 1.2–1.3 的设计基线，供后续实现、TDD 和前端联调使用，六个操作目前尚未实现。本文不是实际 Springdoc 快照，也不表示已通过 Apifox 验收。需求和场景矩阵见 [需求文档](requirements.md)。
+状态：`add-agent-foundation-conversation-api` 的接口设计基线，需求和场景矩阵见 [需求文档](requirements.md)。Service 已按可信 Actor 实现本人会话与幂等归档：员工、同租户他人和跨租户资源同为 404，运行中归档为 busy。实际 HTTP/SSE 与快照以对应实现任务及测试为准；本文不表示通过 Apifox 验收。
 
 ## 1. 公共协议
 
@@ -18,7 +18,7 @@
 
 普通成功使用 `{code:0,message:"success",data,requestId}`；普通错误的 data 为 null。新消息的流响应使用 SSE，不再外包 envelope。幂等成功也是 code=0/message=success，通过响应 MIME 区分。
 
-公共/认证错误码复用当前 `CommonErrorCode`。以下 13xxx 为本文冻结的 Agent/Chat 分配，**尚未写入 Java 枚举**；SSE 的字符串 code 与 JSON 数字 code 的映射在本表定义。
+公共/认证错误码复用当前 `CommonErrorCode`。以下 13xxx 为本文冻结的 Agent/Chat 分配，已写入 `CommonErrorCode`；SSE 的字符串 code 与 JSON 数字 code 的映射在本表定义。
 
 | HTTP（流前） | JSON code | 语义 / SSE code | 触发条件 |
 | --- | --- | --- | --- |
@@ -220,7 +220,7 @@ X-Request-Id: chat-send-001
 | 输出 token 后模型故障 | 一次 error、保存 FAILED，不从头重生成 | 无新 run |
 | 断线后请求命中另一实例 | GET 历史或原 key JSON 返回共享已提交状态，无重放 | 无 |
 
-以上用例为契约审查标准，未在本阶段执行 HTTP、模型或数据库测试。实际 OpenAPI 导出、CORS 配置、测试代码和 Apifox 导入均属于后续任务。
+以上契约由 Service/MySQL、MockMvc、真实 Servlet HTTP 与本地模型协议 stub 定向测试覆盖。实际 Springdoc 分组及导出方式见 [运行说明](manual-verification.md)；Apifox 导入仍属后续任务。
 
 ## 5. SSE 事件协议（v1）
 
@@ -307,7 +307,7 @@ data: {"version":"v1","runId":"500000000000000001","sessionId":"3000000000000000
 
 ### 6.1 fetch 示例（接口消费示意，不是前端交付）
 
-调用前从现有认证存储选取当前店铺/账号类型对应的 accessToken，并核对 principal。`clientMessageId` 在用户点击发送时创建一次，HTTP 重试传入原值，不在每次 fetch 内重新生成；`X-Request-Id` 每次 HTTP 可不同。整个浏览器接口仅需要应用 accessToken，从来不需要 AGENT_API_KEY。
+调用前从现有认证存储选取当前店铺/账号类型对应的 accessToken，并核对 principal。`clientMessageId` 在用户点击发送时创建一次，HTTP 重试传入原值，不在每次 fetch 内重新生成；`X-Request-Id` 每次 HTTP 可不同。整个浏览器接口仅需要应用 accessToken，从来不需要模型 API key。
 
 ```javascript
 async function sendChat({ apiOrigin = "", sessionId, accessToken,
@@ -376,7 +376,7 @@ async function sendChat({ apiOrigin = "", sessionId, accessToken,
 }
 ```
 
-此示例将 UTF-8 解码和完整帧解析分开，不能假设一次 read 就是一个 token/一帧；无终止事件的 EOF 不报告成功。网络错误或 AbortError 会抛给调用方；调用方须保留原 UUID、正文和已知 messageId，进入状态核对，不自动新建 UUID 再发一次。服务端禁用/鉴权 JSON 错误也不能被当作 SSE 解析。浏览器 UI、完整解析器测试和跨源实测留待后续任务。
+此示例将 UTF-8 解码和完整帧解析分开，不能假设一次 read 就是一个 token/一帧；无终止事件的 EOF 不报告成功。网络错误或 AbortError 会抛给调用方；调用方须保留原 UUID、正文和已知 messageId，进入状态核对，不自动新建 UUID 再发一次。服务端禁用/鉴权 JSON 错误也不能被当作 SSE 解析。浏览器 UI 和完整解析器测试留待后续任务；CORS 预检与真实 Servlet 流由 ChatHttpIT 验证。
 
 ### 6.2 跨域预检
 
@@ -389,7 +389,7 @@ Access-Control-Request-Method: POST
 Access-Control-Request-Headers: authorization,content-type,x-request-id
 ```
 
-被允许 origin 的预期响应为 204，允许 GET/POST/OPTIONS 和 Authorization/Content-Type/Accept/X-Request-Id，暴露 X-Request-Id/Location，动态返回允许的具体 Origin 并设置 Vary: Origin。使用请求显式 Bearer，不依赖 Cookie，示例 credentials=omit；不开放任意来源。非法来源预检拒绝或不返回允许头，不能开放匿名聊天路由。这里定义未来配置行为，本轮不修改现有安全过滤器/CORS 配置。
+被允许 origin 的预检响应为 200，允许 GET/POST/OPTIONS 和 Authorization/Content-Type/Accept/X-Request-Id，暴露 X-Request-Id/Location，动态返回允许的具体 Origin 并设置 Vary: Origin。使用请求显式 Bearer，不依赖 Cookie，示例 credentials=omit；不开放任意来源。非法来源预检拒绝或不返回允许头，不能开放匿名聊天路由。已接入现有安全过滤链，显式来源由 merchant.agent.allowed-origins 配置；初始请求鉴权后，异步分派使用已传入的 Actor/requestId。
 
 ### 6.3 恢复步骤
 
@@ -401,4 +401,4 @@ Access-Control-Request-Headers: authorization,content-type,x-request-id
 
 `Last-Event-ID` 不支持事件重放，即使收到该头也不启动恢复流、不把 id 解释为生成指令；客户端不发送此头。不同实例共享 MySQL 历史、幂等和 deadline，Redis 保留现有认证状态，不新增 ChatMemory。SSE 连接仍归接收它的实例，不跨实例搬迁或重做回答。
 
-未来 Nginx 集成检查关闭流代理缓冲和缓存、确认心跳间隔小于代理读取超时及总调用时限有界；完整前端/Nginx 集群不属于本轮 Tasks 1 的交付。
+未来 Nginx 集成检查关闭流代理缓冲和缓存、确认心跳间隔小于代理读取超时及总调用时限有界；完整前端/Nginx 集群不属于本轮 Tasks 3–5 的交付。

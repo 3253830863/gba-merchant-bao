@@ -17,28 +17,28 @@
 
 ## 3. LangChain4j model integration and context
 
-- [ ] 3.1 按现有 controller/service/mapper/entity/dto/vo 约定建立 agent/chat 实际需要的类，集中锁定 LangChain4j 及 OpenAI 集成版本；以 `mvn -f api/pom.xml -DskipTests compile` 验证，不引入 WebFlux、Anthropic 协议依赖、各供应商专属适配器或空 ChatMemory 模块。
-- [ ] 3.2 先写配置校验测试，再实现 `merchant.agent` 的 enabled/base-url/api-key/model、Prompt 版本、输入/输出及超时上限；验证禁用时已有功能不要求模型凭证、启用时非法配置拒绝启动且日志不泄密，同步维护 dev/prod 配置示例和模型服务根路径说明。
-- [ ] 3.3 先用本地 HTTP stub 写 OpenAI 兼容协议契约，再接入 LangChain4j 流式模型；验证最终 `/chat/completions` 路径、Bearer、model、system/user/assistant、stream 和分片解析，SDK 负责协议转换，业务代码不手写供应商请求和流解析。
-- [ ] 3.4 建立小型模型调用边界和确定性替身，先用预设 delta/错误/延迟编写测试，再实现上下文组装；精确断言 system、当前输入、最近成功完整轮次、条数/预算限制和输出预留，失败轮次不注入，超限输入明确拒绝，不做摘要或 Redis ChatMemory。
-- [ ] 3.5 在 `api/docs/agent/model-integration.md` 记录应用消息映射、LangChain4j 协议转换和未来 RAG/FC/ChatMemory 的职责分工；用本地 stub 测试结果核对配置示例，不固定后续必须使用某种高层 AI Services 编排方式。
+- [x] 3.1 按现有 controller/service/mapper/entity/dto/vo 约定建立 agent/chat 实际需要的类，集中锁定 LangChain4j 及 OpenAI 集成版本；以 `mvn -f api/pom.xml -DskipTests compile` 验证，不引入 WebFlux、Anthropic 协议依赖、各供应商专属适配器或空 ChatMemory 模块。
+- [x] 3.2 先写配置校验测试，再实现 `merchant.agent` 的 enabled/base-url/api-key/model、Prompt 版本、输入/输出及超时上限；验证禁用时已有功能不要求模型凭证、启用时非法配置拒绝启动且日志不泄密，同步维护 dev/prod 配置示例和模型服务根路径说明。
+- [x] 3.3 先用本地 HTTP stub 写 OpenAI 兼容协议契约，再接入 LangChain4j 流式模型；验证最终 `/chat/completions` 路径、Bearer、model、system/user/assistant、stream 和分片解析，SDK 负责协议转换，业务代码不手写供应商请求和流解析。
+- [x] 3.4 建立小型模型调用边界和确定性替身，先用预设 delta/错误/延迟编写测试，再实现上下文组装；精确断言 system、当前输入、最近成功完整轮次、条数/预算限制和输出预留，失败轮次不注入，超限输入明确拒绝，不做摘要或 Redis ChatMemory。
+- [x] 3.5 在 `api/docs/agent/model-integration.md` 记录应用消息映射、LangChain4j 协议转换和未来 RAG/FC/ChatMemory 的职责分工；用本地 stub 测试结果核对配置示例，不固定后续必须使用某种高层 AI Services 编排方式。
 
 ## 4. Conversation execution and authorization
 
-- [ ] 4.1 先写 Service 授权用例，再实现创建、本人列表/详情和归档；验证消费者和员工都只访问本商户本人会话，跨租户/他人/不存在统一 404，重复归档幂等，运行中归档返回 busy，规则同步到需求和接口文档。
-- [ ] 4.2 先写并发与幂等用例，再实现事务内会话运行权、序号分配、用户/助手占位落库及提交后调用模型；验证同 key 同正文返回原标识、同 key 不同正文 409、不同 key 运行中 409，幂等判断先于 busy，不持有长事务调用模型。
-- [ ] 4.3 先写终态竞争用例，再实现完成/取消/超时/失败条件更新、有限部分文本及 usage 保存、运行权释放；验证同一 run 只有一个终态、done 前已提交、迟到回调不能改写终态或后继 run，MySQL 写失败不能假报已完成。
-- [ ] 4.4 先写跨实例状态用例，再实现持久化 runId/deadline 与按需过期恢复；用两个独立执行上下文共用隔离数据库验证同会话只有一个有效 run、原实例消失后可超时恢复、不同会话互不阻塞，不依赖单机锁或 Nginx 粘性会话。
-- [ ] 4.5 先写瞬时网络错误、429/5xx、凭证错误和正文输出后故障用例，再实现受总 deadline 限制的有限重试与错误映射；验证正文输出后不从头生成、错误不自动切换供应商，并在运行说明中注明重试不保证上游单次计费。
+- [x] 4.1 先写 Service 授权用例，再实现创建、本人列表/详情和归档；验证消费者和员工都只访问本商户本人会话，跨租户/他人/不存在统一 404，重复归档幂等，运行中归档返回 busy，规则同步到需求和接口文档。
+- [x] 4.2 先写并发与幂等用例，再实现事务内会话运行权、序号分配、用户/助手占位落库及提交后调用模型；验证同 key 同正文返回原标识、同 key 不同正文 409、不同 key 运行中 409，幂等判断先于 busy，不持有长事务调用模型。
+- [x] 4.3 先写终态竞争用例，再实现完成/取消/超时/失败条件更新、有限部分文本及 usage 保存、运行权释放；验证同一 run 只有一个终态、done 前已提交、迟到回调不能改写终态或后继 run，MySQL 写失败不能假报已完成。
+- [x] 4.4 先写跨实例状态用例，再实现持久化 runId/deadline 与按需过期恢复；用两个独立执行上下文共用隔离数据库验证同会话只有一个有效 run、原实例消失后可超时恢复、不同会话互不阻塞，不依赖单机锁或 Nginx 粘性会话。
+- [x] 4.5 先写瞬时网络错误、429/5xx、凭证错误和正文输出后故障用例，再实现受总 deadline 限制的有限重试与错误映射；验证正文输出后不从头生成、错误不自动切换供应商，并在运行说明中注明重试不保证上游单次计费。
 
 ## 5. HTTP and SseEmitter streaming
 
-- [ ] 5.1 先写 HTTP 契约用例，再实现会话和分页历史 Controller、严格 DTO 校验及独立输出 VO；验证统一 envelope、请求关联头、ID/时间格式、长度限制，以及客户端身份/system/role 覆盖字段在模型调用前被拒绝。
-- [ ] 5.2 先写流式契约用例，再使用 SseEmitter 和有界异步执行实现消息 POST；验证 start/token/done/error 顺序、公共标识、串行写入、幂等 JSON 与 SSE 的 Content-Type 区分，不伪造 citation/tool_call，也不实现 Last-Event-ID 重放。
-- [ ] 5.3 先写中止、超时、慢客户端与写失败用例，再实现断开监听、上游取消请求、注释心跳和输出/队列上限；验证迟到 token 被丢弃、运行终态可查、线程资源释放、心跳不续期认证，不新增独立跨实例取消接口。
-- [ ] 5.4 验证异步请求与既有安全过滤器集成，显式传递 Actor/requestId，增加显式来源的 CORS/预检配置及 fetch 示例；通过 MockMvc 或真实 HTTP 流测试验证预检、Bearer、JSON 错误和分段 SSE，禁止任意来源放行，不新增 WebFlux 测试运行时。
-- [ ] 5.5 增加必要的结构化运行日志和现有指标，记录 requestId/runId、商户/角色、服务标签、Prompt/模型、首 token/总耗时和终止原因；用日志用例验证密钥、token、正文、完整 Prompt 和原始手机号不会输出，同步维护运行说明，不另建监控平台。
-- [ ] 5.6 从实际 Springdoc 分组导出 `docs/api/agent-conversation-v1.openapi.yaml`，在 `api/docs/agent/manual-verification.md` 给出 fetch/curl、凭证选择、断开后历史查询和后续 Nginx 缓冲/超时检查；验证快照可解析且覆盖六操作、两种成功 MIME、鉴权、错误与事件样例。
+- [x] 5.1 先写 HTTP 契约用例，再实现会话和分页历史 Controller、严格 DTO 校验及独立输出 VO；验证统一 envelope、请求关联头、ID/时间格式、长度限制，以及客户端身份/system/role 覆盖字段在模型调用前被拒绝。
+- [x] 5.2 先写流式契约用例，再使用 SseEmitter 和有界异步执行实现消息 POST；验证 start/token/done/error 顺序、公共标识、串行写入、幂等 JSON 与 SSE 的 Content-Type 区分，不伪造 citation/tool_call，也不实现 Last-Event-ID 重放。
+- [x] 5.3 先写中止、超时、慢客户端与写失败用例，再实现断开监听、上游取消请求、注释心跳和输出/队列上限；验证迟到 token 被丢弃、运行终态可查、线程资源释放、心跳不续期认证，不新增独立跨实例取消接口。
+- [x] 5.4 验证异步请求与既有安全过滤器集成，显式传递 Actor/requestId，增加显式来源的 CORS/预检配置及 fetch 示例；通过 MockMvc 或真实 HTTP 流测试验证预检、Bearer、JSON 错误和分段 SSE，禁止任意来源放行，不新增 WebFlux 测试运行时。
+- [x] 5.5 增加必要的结构化运行日志和现有指标，记录 requestId/runId、商户/角色、服务标签、Prompt/模型、首 token/总耗时和终止原因；用日志用例验证密钥、token、正文、完整 Prompt 和原始手机号不会输出，同步维护运行说明，不另建监控平台。
+- [x] 5.6 从实际 Springdoc 分组导出 `docs/api/agent-conversation-v1.openapi.yaml`，在 `api/docs/agent/manual-verification.md` 给出 fetch/curl、凭证选择、断开后历史查询和后续 Nginx 缓冲/超时检查；验证快照可解析且覆盖六操作、两种成功 MIME、鉴权、错误与事件样例。
 
 ## 6. Apifox integration
 

@@ -9,6 +9,7 @@ import java.util.List;
 
 @Mapper
 public interface ChatSessionMapper {
+    int expireRun(@Param("owner") ChatOwner owner,@Param("sessionId") long sessionId,@Param("runId") long runId,@Param("now") LocalDateTime now);
     /** Caller must construct the row from a verified actor, not client identity fields. */
     int insert(ChatSessionRow row);
     ChatSessionRow findOwned(@Param("owner") ChatOwner owner, @Param("sessionId") long sessionId);

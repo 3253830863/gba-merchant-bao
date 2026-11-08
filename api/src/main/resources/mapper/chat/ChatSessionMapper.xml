@@ -4,6 +4,10 @@
   <sql id="columns">id,merchant_id,owner_account_id,owner_role,title,status,created_at,updated_at,
     archived_at,archived_by,next_message_seq,active_run_id,run_deadline_at</sql>
   <sql id="owner">merchant_id=#{owner.merchantId} AND owner_account_id=#{owner.accountId} AND owner_role=#{owner.role}</sql>
+  <update id="expireRun">
+    UPDATE chat_session SET run_deadline_at=#{now}
+    WHERE <include refid="owner"/> AND id=#{sessionId} AND active_run_id=#{runId} AND run_deadline_at > #{now}
+  </update>
   <insert id="insert">
     INSERT INTO chat_session (<include refid="columns"/>) VALUES
       (#{id},#{merchantId},#{ownerAccountId},#{ownerRole},#{title},#{status},#{createdAt},#{updatedAt},
