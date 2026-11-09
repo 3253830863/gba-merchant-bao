@@ -46,7 +46,7 @@ class FlywayMigrationIT {
                 .load();
 
         flyway.migrate();
-        assertCurrentVersionFour(flyway);
+        assertCurrentVersionFive(flyway);
         try (Connection connection = DriverManager.getConnection(
                 mysql.getJdbcUrl(), mysql.getUsername(), mysql.getPassword());
              ResultSet tables = connection.createStatement().executeQuery(
@@ -68,7 +68,7 @@ class FlywayMigrationIT {
     void testSeedsAreIdempotentAndUseStableTenantCodes() throws Exception {
         Flyway flyway = migration("classpath:db/migration", "classpath:db/seed/nonprod");
         flyway.migrate();
-        assertCurrentVersionFour(flyway);
+        assertCurrentVersionFive(flyway);
         try (Connection connection = connection()) {
             ScriptUtils.executeSqlScript(connection,
                     new ClassPathResource("db/seed/nonprod/R__010_local_test_tenants.sql"));
@@ -99,7 +99,7 @@ class FlywayMigrationIT {
                 .hasMessageContaining("non-empty schema");
         flyway.baseline();
         flyway.migrate();
-        assertCurrentVersionFour(flyway);
+        assertCurrentVersionFive(flyway);
         try (Connection connection = connection();
              ResultSet rows = connection.createStatement().executeQuery(
                      "SELECT name FROM category WHERE id = 987654")) {
@@ -123,8 +123,8 @@ class FlywayMigrationIT {
         var legacyBefore = jdbc.queryForList("SELECT * FROM category WHERE id=9902");
 
         var latest = migration("classpath:db/migration");
-        assertThat(latest.migrate().migrationsExecuted).isOne();
-        assertCurrentVersionFour(latest);
+        assertThat(latest.migrate().migrationsExecuted).isEqualTo(2);
+        assertCurrentVersionFive(latest);
         for (var info : latest.info().applied()) {
             if (oldChecksums.containsKey(info.getVersion().getVersion())) {
                 assertThat(info.getChecksum()).isEqualTo(oldChecksums.get(info.getVersion().getVersion()));
@@ -150,9 +150,9 @@ class FlywayMigrationIT {
         assertThat(jdbc.queryForList("SELECT * FROM flyway_schema_history ORDER BY installed_rank")).isEqualTo(historyBefore);
     }
 
-    private void assertCurrentVersionFour(Flyway flyway) {
+    private void assertCurrentVersionFive(Flyway flyway) {
         flyway.validate();
-        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("4");
+        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("5");
         assertThat(flyway.info().pending()).isEmpty();
         assertThat(flyway.info().applied()).allSatisfy(info ->
                 assertThat(info.getState()).isIn(MigrationState.SUCCESS, MigrationState.BASELINE));

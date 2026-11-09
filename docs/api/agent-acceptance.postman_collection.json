@@ -1,0 +1,697 @@
+{
+  "info": {
+    "name": "Agent 受控模型验收（本机隔离）",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "导入 Apifox 后运行01–14。只允许独立 AgentApifoxWorkspace；fixtureUrl 从本机忽略文件设置。临时登录 token 每个请求由本机 fixture 获取，只存 pm.variables，不保存共享变量。busy/客户端中止另按文档人工验证。未执行不代表通过。"
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "const fixtureUrl=pm.variables.get('fixtureUrl');",
+          "const fixtureAddress=new URL(fixtureUrl||'http://invalid');",
+          "if(fixtureAddress.protocol!=='http:' || fixtureAddress.hostname!=='127.0.0.1' || !fixtureAddress.pathname.startsWith('/fixture/')) throw new Error('Set the local disposable fixtureUrl first');",
+          "pm.sendRequest(fixtureUrl,function(error,response){if(error||response.code!==200)throw new Error('Local fixture unavailable');const fixture=response.json();for(const [key,value] of Object.entries(fixture)){if(!['sessionId'].includes(key))pm.variables.set(key,value);}});"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "01 创建本人会话",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{accessToken}}"
+          },
+          {
+            "key": "Accept",
+            "value": "text/event-stream, application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Request-Id",
+            "value": "apifox-agent-acceptance"
+          }
+        ],
+        "url": "{{baseUrl}}/api/v1/chat/sessions",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"title\":\"Apifox controlled acceptance\"}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.variables.set('normalKey',pm.variables.replaceIn('{{$guid}}'));"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 201\", function () { pm.response.to.have.status(201); });",
+              "const data=pm.response.json().data; pm.variables.set('sessionId',data.sessionId); pm.test(\"String session ID\", function () { pm.expect(data.sessionId).to.match(/^[1-9][0-9]*$/); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "02 本人会话列表",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{accessToken}}"
+          },
+          {
+            "key": "Accept",
+            "value": "text/event-stream, application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Request-Id",
+            "value": "apifox-agent-acceptance"
+          }
+        ],
+        "url": "{{baseUrl}}/api/v1/chat/sessions?size=100"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+              "pm.test(\"Created session appears\", function () { pm.expect(pm.response.json().data.items.map(x=>x.sessionId)).to.include(pm.variables.get('sessionId'));  });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "03 本人会话详情",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{accessToken}}"
+          },
+          {
+            "key": "Accept",
+            "value": "text/event-stream, application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Request-Id",
+            "value": "apifox-agent-acceptance"
+          }
+        ],
+        "url": "{{baseUrl}}/api/v1/chat/sessions/{{sessionId}}"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+              "pm.test(\"Owner session\", function () { pm.expect(pm.response.json().data.sessionId).to.equal(pm.variables.get('sessionId')); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "04 正常 SSE 与 MySQL",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{accessToken}}"
+          },
+          {
+            "key": "Accept",
+            "value": "text/event-stream, application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Request-Id",
+            "value": "apifox-agent-acceptance"
+          }
+        ],
+        "url": "{{baseUrl}}/api/v1/chat/sessions/{{sessionId}}/messages",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"content\":\"hello\",\"clientMessageId\":\"{{normalKey}}\"}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+              "",
+              "pm.test('SSE MIME',function(){pm.expect(pm.response.headers.get('Content-Type')).to.include('text/event-stream');});",
+              "const raw=pm.response.text().replace(/\\r\\n/g,'\\n');",
+              "const events=raw.split('\\n\\n').filter(x=>/^event:/m.test(x)).map(frame=>({name:(frame.match(/^event:\\s*(.+)$/m)||[])[1],data:JSON.parse((frame.match(/^data:\\s*(.+)$/m)||[])[1])}));",
+              "pm.test('Public correlation and event order',function(){pm.expect(events[0].name).to.equal('start');events.forEach(x=>{pm.expect(x.data.version).to.equal('v1');pm.expect(x.data.sessionId).to.equal(pm.variables.get('sessionId'));pm.expect(x.data.runId).to.equal(events[0].data.runId);});});",
+              "pm.variables.set('runId',events[0].data.runId);",
+              "pm.test(\"Controlled exact text\", function () { pm.expect(events.map(x=>x.name)).to.deep.equal(['start','token','token','done']);pm.expect(events.filter(x=>x.name==='token').map(x=>x.data.delta).join('')).to.equal('hello world'); });",
+              "pm.sendRequest(pm.variables.get('fixtureUrl')+'?sessionId='+pm.variables.get('sessionId'), function(error,response){",
+              "  pm.test('Database lookup succeeds',function(){pm.expect(error).to.equal(null);pm.expect(response.code).to.equal(200);});",
+              "  const rows=response.json(); const row=rows.messages.filter(x=>String(x.run_id)===String(pm.variables.get('runId')) && x.sender_type==='ASSISTANT')[0];",
+              "  pm.test('Persisted terminal and text',function(){pm.expect(row.status).to.equal('COMPLETED');pm.expect(row.content).to.equal(\"hello world\");pm.expect(rows.session.active_run_id).to.equal(null);});",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "05 同 key 同文返回 JSON",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{accessToken}}"
+          },
+          {
+            "key": "Accept",
+            "value": "text/event-stream, application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Request-Id",
+            "value": "apifox-agent-acceptance"
+          }
+        ],
+        "url": "{{baseUrl}}/api/v1/chat/sessions/{{sessionId}}/messages",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"content\":\"hello\",\"clientMessageId\":\"{{normalKey}}\"}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+              "pm.test(\"Idempotent JSON\", function () { pm.expect(pm.response.headers.get('Content-Type')).to.include('application/json');pm.expect(pm.response.json().data.runId).to.equal(pm.variables.get('runId')); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "06 同 key 改文冲突",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{accessToken}}"
+          },
+          {
+            "key": "Accept",
+            "value": "text/event-stream, application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Request-Id",
+            "value": "apifox-agent-acceptance"
+          }
+        ],
+        "url": "{{baseUrl}}/api/v1/chat/sessions/{{sessionId}}/messages",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"content\":\"changed\",\"clientMessageId\":\"{{normalKey}}\"}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 409\", function () { pm.response.to.have.status(409); });",
+              "pm.test(\"Business code\", function () { pm.expect(pm.response.json().code).to.equal(13003); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "07 历史正文",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{accessToken}}"
+          },
+          {
+            "key": "Accept",
+            "value": "text/event-stream, application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Request-Id",
+            "value": "apifox-agent-acceptance"
+          }
+        ],
+        "url": "{{baseUrl}}/api/v1/chat/sessions/{{sessionId}}/messages"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+              "pm.test(\"Committed history\", function () { const rows=pm.response.json().data.items;pm.expect(rows.find(x=>x.runId===pm.variables.get('runId')&&x.senderType==='ASSISTANT').content).to.equal('hello world'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "08 同租户员工不能读取本人会话",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{staffToken}}"
+          },
+          {
+            "key": "Accept",
+            "value": "text/event-stream, application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Request-Id",
+            "value": "apifox-agent-acceptance"
+          }
+        ],
+        "url": "{{baseUrl}}/api/v1/chat/sessions/{{sessionId}}"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 404\", function () { pm.response.to.have.status(404); });",
+              "",
+              "for(const operation of [{method:'GET',suffix:'/messages'},{method:'POST',suffix:'/archive'},{method:'POST',suffix:'/messages',body:{mode:'raw',raw:JSON.stringify({content:'forbidden',clientMessageId:pm.variables.replaceIn('{{$guid}}')})}}]) {",
+              "pm.sendRequest({url:pm.variables.get('baseUrl')+'/api/v1/chat/sessions/'+pm.variables.get('sessionId')+operation.suffix,method:operation.method,header:{Authorization:'Bearer '+pm.variables.get('staffToken'),'Content-Type':'application/json'},body:operation.body},function(error,response){pm.test('staffToken '+operation.method+' '+operation.suffix+' 404',function(){pm.expect(error).to.equal(null);pm.expect(response.code).to.equal(404);});});",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "09 另一租户不能读取本人会话",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{otherTenantToken}}"
+          },
+          {
+            "key": "Accept",
+            "value": "text/event-stream, application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Request-Id",
+            "value": "apifox-agent-acceptance"
+          }
+        ],
+        "url": "{{baseUrl}}/api/v1/chat/sessions/{{sessionId}}"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 404\", function () { pm.response.to.have.status(404); });",
+              "",
+              "for(const operation of [{method:'GET',suffix:'/messages'},{method:'POST',suffix:'/archive'},{method:'POST',suffix:'/messages',body:{mode:'raw',raw:JSON.stringify({content:'forbidden',clientMessageId:pm.variables.replaceIn('{{$guid}}')})}}]) {",
+              "pm.sendRequest({url:pm.variables.get('baseUrl')+'/api/v1/chat/sessions/'+pm.variables.get('sessionId')+operation.suffix,method:operation.method,header:{Authorization:'Bearer '+pm.variables.get('otherTenantToken'),'Content-Type':'application/json'},body:operation.body},function(error,response){pm.test('otherTenantToken '+operation.method+' '+operation.suffix+' 404',function(){pm.expect(error).to.equal(null);pm.expect(response.code).to.equal(404);});});",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "10 首 token 超时",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{accessToken}}"
+          },
+          {
+            "key": "Accept",
+            "value": "text/event-stream, application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Request-Id",
+            "value": "apifox-agent-acceptance"
+          }
+        ],
+        "url": "{{baseUrl}}/api/v1/chat/sessions/{{sessionId}}/messages",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"content\":\"accept:timeout\",\"clientMessageId\":\"{{caseKey}}\"}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.variables.set('caseKey',pm.variables.replaceIn('{{$guid}}'));"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+              "",
+              "pm.test('SSE MIME',function(){pm.expect(pm.response.headers.get('Content-Type')).to.include('text/event-stream');});",
+              "const raw=pm.response.text().replace(/\\r\\n/g,'\\n');",
+              "const events=raw.split('\\n\\n').filter(x=>/^event:/m.test(x)).map(frame=>({name:(frame.match(/^event:\\s*(.+)$/m)||[])[1],data:JSON.parse((frame.match(/^data:\\s*(.+)$/m)||[])[1])}));",
+              "pm.test('Public correlation and event order',function(){pm.expect(events[0].name).to.equal('start');events.forEach(x=>{pm.expect(x.data.version).to.equal('v1');pm.expect(x.data.sessionId).to.equal(pm.variables.get('sessionId'));pm.expect(x.data.runId).to.equal(events[0].data.runId);});});",
+              "pm.variables.set('runId',events[0].data.runId);",
+              "pm.test(\"One safe error terminal\", function () { pm.expect(events[events.length-1].name).to.equal('error');pm.expect(events.filter(x=>x.name==='done')).to.have.length(0);pm.expect(events[events.length-1].data.code).to.equal('TIMEOUT'); });",
+              "pm.sendRequest(pm.variables.get('fixtureUrl')+'?sessionId='+pm.variables.get('sessionId'), function(error,response){",
+              "  pm.test('Database lookup succeeds',function(){pm.expect(error).to.equal(null);pm.expect(response.code).to.equal(200);});",
+              "  const rows=response.json(); const row=rows.messages.filter(x=>String(x.run_id)===String(pm.variables.get('runId')) && x.sender_type==='ASSISTANT')[0];",
+              "  pm.test('Persisted terminal and text',function(){pm.expect(row.status).to.equal('TIMED_OUT');pm.expect(row.content).to.equal(\"\");pm.expect(rows.session.active_run_id).to.equal(null);});",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "11 部分输出后故障",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{accessToken}}"
+          },
+          {
+            "key": "Accept",
+            "value": "text/event-stream, application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Request-Id",
+            "value": "apifox-agent-acceptance"
+          }
+        ],
+        "url": "{{baseUrl}}/api/v1/chat/sessions/{{sessionId}}/messages",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"content\":\"accept:error\",\"clientMessageId\":\"{{caseKey}}\"}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.variables.set('caseKey',pm.variables.replaceIn('{{$guid}}'));"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+              "",
+              "pm.test('SSE MIME',function(){pm.expect(pm.response.headers.get('Content-Type')).to.include('text/event-stream');});",
+              "const raw=pm.response.text().replace(/\\r\\n/g,'\\n');",
+              "const events=raw.split('\\n\\n').filter(x=>/^event:/m.test(x)).map(frame=>({name:(frame.match(/^event:\\s*(.+)$/m)||[])[1],data:JSON.parse((frame.match(/^data:\\s*(.+)$/m)||[])[1])}));",
+              "pm.test('Public correlation and event order',function(){pm.expect(events[0].name).to.equal('start');events.forEach(x=>{pm.expect(x.data.version).to.equal('v1');pm.expect(x.data.sessionId).to.equal(pm.variables.get('sessionId'));pm.expect(x.data.runId).to.equal(events[0].data.runId);});});",
+              "pm.variables.set('runId',events[0].data.runId);",
+              "pm.test(\"One safe error terminal\", function () { pm.expect(events[events.length-1].name).to.equal('error');pm.expect(events.filter(x=>x.name==='done')).to.have.length(0);pm.expect(events[events.length-1].data.code).to.equal('DEPENDENCY_ERROR'); });",
+              "pm.sendRequest(pm.variables.get('fixtureUrl')+'?sessionId='+pm.variables.get('sessionId'), function(error,response){",
+              "  pm.test('Database lookup succeeds',function(){pm.expect(error).to.equal(null);pm.expect(response.code).to.equal(200);});",
+              "  const rows=response.json(); const row=rows.messages.filter(x=>String(x.run_id)===String(pm.variables.get('runId')) && x.sender_type==='ASSISTANT')[0];",
+              "  pm.test('Persisted terminal and text',function(){pm.expect(row.status).to.equal('FAILED');pm.expect(row.content).to.equal(\"hello\");pm.expect(rows.session.active_run_id).to.equal(null);});",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "12 归档本人会话",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{accessToken}}"
+          },
+          {
+            "key": "Accept",
+            "value": "text/event-stream, application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Request-Id",
+            "value": "apifox-agent-acceptance"
+          }
+        ],
+        "url": "{{baseUrl}}/api/v1/chat/sessions/{{sessionId}}/archive",
+        "body": {
+          "mode": "raw",
+          "raw": "{}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+              "pm.test(\"Archived\", function () { pm.expect(pm.response.json().data.status).to.equal('ARCHIVED'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "13 重复归档幂等",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{accessToken}}"
+          },
+          {
+            "key": "Accept",
+            "value": "text/event-stream, application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Request-Id",
+            "value": "apifox-agent-acceptance"
+          }
+        ],
+        "url": "{{baseUrl}}/api/v1/chat/sessions/{{sessionId}}/archive",
+        "body": {
+          "mode": "raw",
+          "raw": "{}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+              "pm.test(\"Still archived\", function () { pm.expect(pm.response.json().data.status).to.equal('ARCHIVED'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "14 归档后拒绝新消息",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{accessToken}}"
+          },
+          {
+            "key": "Accept",
+            "value": "text/event-stream, application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Request-Id",
+            "value": "apifox-agent-acceptance"
+          }
+        ],
+        "url": "{{baseUrl}}/api/v1/chat/sessions/{{sessionId}}/messages",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"content\":\"new\",\"clientMessageId\":\"{{caseKey}}\"}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.variables.set('caseKey',pm.variables.replaceIn('{{$guid}}'));"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 409\", function () { pm.response.to.have.status(409); });",
+              "pm.test(\"Archived business code\", function () { pm.expect(pm.response.json().code).to.equal(13004); });"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}
