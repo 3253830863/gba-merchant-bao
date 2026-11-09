@@ -18,7 +18,16 @@ base-url 为 API 根地址，不能包含 `/chat/completions`。浏览器只持�
 
 ## curl 验证
 
-以下使用 POSIX shell；Windows 可在 Git Bash 执行。BASE_URL 与 ACCESS_TOKEN 由本机环境提供，SESSION_ID 使用创建结果中的字符串。
+以下使用 POSIX shell；Windows 可在 Git Bash 执行。`BASE_URL`、`ACCESS_TOKEN` 只是执行 curl 时的本机 shell 变量，并非 Spring Boot 的环境变量配置，也不会从 application-dev.yml 自动读取。
+`BASE_URL` 是本应用地址（例如 `http://127.0.0.1:8080`）；`ACCESS_TOKEN` 是消费者/员工登录本应用后返回的 `data.accessToken`，不是 application-dev.yml 中访问模型网关的 `merchant.agent.api-key`。后者只由后端使用。
+`SESSION_ID` 使用创建结果中的字符串。可在当前 Git Bash 临时赋值，无需永久配置系统环境变量：
+
+```bash
+BASE_URL='http://127.0.0.1:8080'
+read -r -s -p '本应用登录返回的 accessToken: ' ACCESS_TOKEN
+printf '\n'
+# 创建成功后，将返回的 data.sessionId 赋给 SESSION_ID，再执行发送/查询。
+```
 
 ```bash
 curl -i "$BASE_URL/api/v1/chat/sessions" \
@@ -33,7 +42,7 @@ curl -N -i "$BASE_URL/api/v1/chat/sessions/$SESSION_ID/messages" \
 curl "$BASE_URL/api/v1/chat/sessions/$SESSION_ID/messages?size=20" -H "Authorization: Bearer $ACCESS_TOKEN"
 curl "$BASE_URL/api/v1/chat/sessions?size=20" -H "Authorization: Bearer $ACCESS_TOKEN"
 curl "$BASE_URL/api/v1/chat/sessions/$SESSION_ID" -H "Authorization: Bearer $ACCESS_TOKEN"
-curl -X POST "$BASE_URL/api/v1/chat/sessions/$SESSION_ID/archive" -H "Authorization: Bearer $ACCESS_TOKEN"
+curl -X POST "$BASE_URL/api/v1/chat/sessions/$SESSION_ID/archive" -H "Authorization: Bearer $ACCESS_TOKEN" -H 'Content-Type: application/json' --data '{}'
 ```
 
 相同 clientMessageId/正文重复发送应返回 JSON 原 run 标识，不重新调用模型；改正文为 409/13003。
@@ -117,4 +126,4 @@ status 标签为固定集合，不把 requestId/runId/商户放入指标标签�
 
 部署反向代理时再针对消息 POST 核对 `proxy_buffering off`、缓存关闭、读取/发送超时大于应用总 deadline + 写入余量，避免压缩/代理聚合抹掉分段体验。
 通过浏览器网络面板和 `curl -N` 确认 start/token 逐段到达，测试断开、慢客户端、CORS 和 X-Request-Id 透传；数据库共享运行权不依赖粘性会话。
-当前没有部署 Nginx 或完整聊天前端；Apifox 导入/真实模型联调及第 7 节综合验收仍按任务列表后续进行。
+当前没有部署 Nginx 或完整聊天前端。真实模型、独立 MySQL/Redis 综合验收和 Apifox 的实际状态见 [验收记录](verification.md)；Apifox 操作见 [验收步骤](apifox-verification.md)。

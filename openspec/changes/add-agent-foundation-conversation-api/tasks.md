@@ -44,10 +44,10 @@
 
 - [ ] 6.1 将实际 OpenAPI 导入 Apifox 对应模块，配置独立测试环境和本地凭证引用，保存导入与用例组织说明；核对六操作及 SSE/JSON 响应可用，不把真实 API key、登录 token 或开发密码写进导出契约。
 - [ ] 6.2 使用可控模型完成 Apifox 协议验收，覆盖本人创建/发送/历史/归档、员工查他人拒绝、两租户隔离、幂等/busy、错误、超时和客户端中止；断言结构、事件顺序、预设文本与按业务标识定位的数据库状态，不以共享整表总数或空表为前提。
-- [ ] 6.3 使用本地配置的真实 DeepSeek、Qwen 或其他 OpenAI 兼容网关完成真实模型联调，验证协议连通、非空流式回答、终态和 MySQL 历史一致；记录实际服务/模型及结论，不精确匹配固定自然语言、不把基础聊天联通称为 RAG/Tool 效果验收，无法执行时如实保留待验收。
+- [x] 6.3 使用本地配置的真实 DeepSeek、Qwen 或其他 OpenAI 兼容网关完成真实模型联调，验证协议连通、非空流式回答、终态和 MySQL 历史一致；记录实际服务/模型及结论，不精确匹配固定自然语言、不把基础聊天联通称为 RAG/Tool 效果验收，无法执行时如实保留待验收。
 
 ## 7. Integrated acceptance
 
-- [ ] 7.1 执行 `mvn -f api/pom.xml test` 和 `mvn -f api/pom.xml clean verify`，汇总单元、协议、MySQL/Flyway 和真实认证 HTTP/SSE 的实际报告；完整链路使用独立 MySQL/Redis Testcontainers，Redis 仅服务既有认证，Docker 不可用明确失败，不连接开发卷或静默跳过集成测试。
-- [ ] 7.2 将已完成的需求/接口/表结构/测试/Apifox 证据对应到 `api/docs/agent/verification.md`，检查按业务标识断言、租户本人隔离、断开恢复和两个执行上下文共享状态；明确完整前端、真实 Nginx 集群、RAG、FC、RabbitMQ、Redis ChatMemory 尚未交付，未通过项不得标记完成。
-- [ ] 7.3 同步 `api/README.md`、架构模块路线图、包结构与测试文档入口，复核后续模块可复用模型边界、完整历史和可信身份；验证链接/命令有效、未创建 ChatMemory 键或摘要机制、已执行迁移未改写，所有实现任务与验收矩阵一致后再提交模块验收。
+- [x] 7.1 执行 `mvn -f api/pom.xml test` 和 `mvn -f api/pom.xml clean verify`，汇总单元、协议、MySQL/Flyway 和真实认证 HTTP/SSE 的实际报告；完整链路使用独立 MySQL/Redis Testcontainers，Redis 仅服务既有认证，Docker 不可用明确失败，不连接开发卷或静默跳过集成测试。
+- [x] 7.2 将已完成的需求/接口/表结构/测试/Apifox 证据对应到 `api/docs/agent/verification.md`，检查按业务标识断言、租户本人隔离、断开恢复和两个执行上下文共享状态；明确完整前端、真实 Nginx 集群、RAG、FC、RabbitMQ、Redis ChatMemory 尚未交付，未通过项不得标记完成。
+- [x] 7.3 同步 `api/README.md`、架构模块路线图、包结构与测试文档入口，复核后续模块可复用模型边界、完整历史和可信身份；验证链接/命令有效、未创建 ChatMemory 键或摘要机制、已执行迁移未改写，所有实现任务与验收矩阵一致后再提交模块验收。

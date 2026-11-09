@@ -1,6 +1,6 @@
 # Agent 基础与对话接口需求
 
-状态：`add-agent-foundation-conversation-api` 的需求基线。实现推进至 Tasks 3–5；定向测试与运行方式见 [手工验证和运行说明](manual-verification.md)，第 6–7 节联调和综合验收尚未执行。API 与 SSE 字段见 [接口契约](api-design.md)。
+状态：`add-agent-foundation-conversation-api` 的需求基线。实现与实际验收证据见 [验收记录](verification.md)，Apifox 导入和可控模型协议验收仍待完成，不能宣称全部验收通过。运行方式见 [手工验证和运行说明](manual-verification.md)，API 与 SSE 字段见 [接口契约](api-design.md)。
 
 ## 1. 目标和范围
 
@@ -49,7 +49,7 @@ OpenAPI 是契约，Flyway 是迁移工具，TDD 是开发方法，Apifox 是联
 
 ## 5. 场景验收矩阵
 
-下列行逐一对应本 change 两份 delta spec 的全部 32 个 `Scenario`。英文名称是 spec 中的精确场景名，用于追踪；每行均为待实现/待验证的验收标准，不是已通过记录。
+下列行逐一对应本 change 两份 delta spec 的全部 32 个 `Scenario`。英文名称是 spec 中的精确场景名，用于追踪；本表定义验收标准，逐项证据和实际状态以 [验收记录](verification.md) 为准。
 
 ### 5.1 agent-runtime（14 个场景）
 
@@ -97,7 +97,7 @@ OpenAPI 是契约，Flyway 是迁移工具，TDD 是开发方法，Apifox 是联
 | CV-17 | Concurrent sends arrive at separate instances | 两实例同会话竞争只有一个有效 run，另一 busy | 两执行上下文共享库 |
 | CV-18 | A process crashes while generating | deadline 后存活实例可终结旧 run、处理新消息；不永久 busy、重生成或接受旧回调 | 原执行者消失及过期恢复用例 |
 
-补充协议边界：输入/标题/分页上限、同 key 在归档后重查、CORS 预检、缺失用量、流未终止即 EOF 等用例见接口契约。Service/HTTP/模型协议的定向证据见对应测试；Apifox 与综合验收仍按 Tasks 6–7 后续执行。
+补充协议边界：输入/标题/分页上限、同 key 在归档后重查、CORS 预检、缺失用量、流未终止即 EOF 等用例见接口契约。Service/HTTP/模型协议的证据见对应测试；Apifox 未通过项单独保留，不以自动化结果代替。
 
 ## 6. 断言与验证原则
 
@@ -122,7 +122,7 @@ MySQL/Redis 完整验证使用独立 Testcontainers，不访问 dev Compose 卷�
 | 独立前端 | 六个 HTTP 操作、fetch SSE、Bearer、CORS 及断流恢复契约 | 完整聊天页面、登录 UI、浏览器实测 |
 | Nginx 多实例 | 共享历史、幂等与运行 deadline，无单机唯一锁、无需粘性会话 | 真实 Nginx 配置部署、多进程负载均衡和端到端压测 |
 
-前端只持有现有认证 access/refresh，不能持有模型 API key。未来 Nginx 需检查关闭 SSE 缓冲/缓存、心跳与代理超时；本 change 只验证共享存储边界，不把文档或两个执行上下文测试当作已部署集群。本轮范围为 Tasks 3–5，第 6、7 组保持待办。
+前端只持有现有认证 access/refresh，不能持有模型 API key。未来 Nginx 需检查关闭 SSE 缓冲/缓存、心跳与代理超时；本 change 只验证共享存储边界，不把文档或两个执行上下文测试当作已部署集群。第 6、7 组逐项状态见 tasks.md 和验收记录。
 ## 8. Service 实施补充
 
 会话 Service 由可信 Actor 的 merchantId/accountId/role 限定本人范围，员工无额外查看权限。
