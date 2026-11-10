@@ -82,6 +82,11 @@ class InventoryFlowIT {
         return json.readTree(response.getBody());
     }
 
+    /** Class-level fixtures are shared by all tests in this class; give each test a fresh row. */
+    private void resetDemoStock() {
+        jdbc.update("UPDATE inventory SET available_qty=10, reserved_qty=0, version=0 WHERE sku_id=?", DEMO_SKU);
+    }
+
     private ResponseEntity<String> reserve(String token, String key, long skuId, int qty) {
         return post("/api/v1/merchant/inventory/reserve", token,
                 Map.of("idempotentKey", key, "skuId", skuId, "qty", qty));
@@ -100,7 +105,8 @@ class InventoryFlowIT {
             var responses = java.util.List.of(fa.get(60, TimeUnit.SECONDS), fb.get(60, TimeUnit.SECONDS));
 
             var statuses = responses.stream().mapToInt(r -> r.getStatusCode().value()).sorted().toArray();
-            assertThat(statuses).containsExactly(200, 409);
+            assertThat(statuses).as("bodies: %s | %s", responses.get(0).getBody(), responses.get(1).getBody())
+                    .containsExactly(200, 409);
 
             // The loser is the 409 one; assert its business code is the available-shortage code.
             for (var response : responses) {
@@ -110,7 +116,7 @@ class InventoryFlowIT {
             }
 
             // No oversell: exactly one reservation landed (10 - 7).
-            var stock = json.readTree(http.getForEntity("/api/v1/merchant/inventory/" + DEMO_SKU, String.class).getBody());
+            var stock = envelope(get("/api/v1/merchant/inventory/" + DEMO_SKU, staff));
             assertThat(stock.get("data").get("availableQty").asInt()).isEqualTo(3);
         }
     }
@@ -118,16 +124,17 @@ class InventoryFlowIT {
     @Test
     void sameIdempotentKeyAppliesTheStockChangeExactlyOnce() throws Exception {
         String staff = token(2000000000000101L, DEMO_TENANT, AccountRole.MERCHANT_STAFF);
+        resetDemoStock();
 
         var first = reserve(staff, "IT-IDEM-1", DEMO_SKU, 4);
         var repeat = reserve(staff, "IT-IDEM-1", DEMO_SKU, 4);
-        assertThat(first.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(repeat.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(first.getStatusCode()).as("first: %s", first.getBody()).isEqualTo(HttpStatus.OK);
+        assertThat(repeat.getStatusCode()).as("repeat: %s", repeat.getBody()).isEqualTo(HttpStatus.OK);
         assertThat(envelope(first).get("code").asInt()).isZero();
         assertThat(envelope(repeat).get("code").asInt()).isZero();
 
         // The stock moved once (10 - 4), not twice; one SUCCESS idempotency row exists.
-        var stock = json.readTree(http.getForEntity("/api/v1/merchant/inventory/" + DEMO_SKU, String.class).getBody());
+        var stock = envelope(get("/api/v1/merchant/inventory/" + DEMO_SKU, staff));
         assertThat(stock.get("data").get("availableQty").asInt()).isEqualTo(6);
         assertThat(jdbc.queryForObject(
                 "SELECT COUNT(*) FROM inventory_idempotent WHERE idempotent_key='IT-IDEM-1' AND status='SUCCESS'",
@@ -138,13 +145,14 @@ class InventoryFlowIT {
 
         // A different key is a new operation and moves the stock again.
         assertThat(reserve(staff, "IT-IDEM-2", DEMO_SKU, 2).getStatusCode()).isEqualTo(HttpStatus.OK);
-        var after = json.readTree(http.getForEntity("/api/v1/merchant/inventory/" + DEMO_SKU, String.class).getBody());
+        var after = envelope(get("/api/v1/merchant/inventory/" + DEMO_SKU, staff));
         assertThat(after.get("data").get("availableQty").asInt()).isEqualTo(4);
     }
 
     @Test
     void crossTenantAndMissingStockAreIndistinguishable404() throws Exception {
         String demoStaff = token(2000000000000101L, DEMO_TENANT, AccountRole.MERCHANT_STAFF);
+        resetDemoStock();
         String isolationStaff = token(2000000000000102L, ISOLATION_TENANT, AccountRole.MERCHANT_STAFF);
 
         // The isolation tenant cannot see or touch the demo tenant's SKU.
