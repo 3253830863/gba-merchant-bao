@@ -1,6 +1,6 @@
 # 开发种子数字前缀与一次性历史升级
 
-正常运行仅保留 `R__010_local_test_tenants.sql`（dev/test）和 `R__020_auth_demo_accounts.sql`（仅 dev），不保留旧名空文件，不使用 AFTER_MIGRATE 回调。V1–V4 不改。首次启动空库先执行所有 V，再按 R 的描述排序执行 010、020，locations 的排列不代表依赖。
+正常运行使用 `R__010_local_test_tenants.sql`（dev/test）、`R__020_auth_demo_accounts.sql` 和 `R__030_chat_demo.sql`（后两者仅 dev），不保留旧名空文件，不使用 AFTER_MIGRATE 回调。V1–V4 不改，会话结构由新增 V5 提供。首次启动空库先执行所有 V，再按 R 的描述排序执行 010、020、030，locations 的排列不代表依赖。
 
 租户和账号只插缺失记录，保留密码、停用状态、名称及其他人工资料。预期租户缺失、固定 ID/编码/用户名/手机号/商户归属冲突时，在写入前通过名为 `dev_seed_*` 的 NOT NULL 临时校验列报错，错误列名说明具体问题；临时表只存在于当前连接，不创建永久业务表或过程。不要用 INSERT IGNORE 或覆盖式 upsert 隐藏问题。
 
@@ -13,6 +13,8 @@
 每个已执行旧 R 的开发库各操作一次，新开发者空库无需 repair。生产仍只加载 migration/common，应用使用 DML 账号、关闭 Flyway；独立迁移成功才启动新版应用，不执行本次开发种子 repair。生产滚动发布、Nginx、真实短信接入不属于此工具范围。
 
 独立入口 `com.gba.merchantbao.maintenance.DevSeedUpgrade` 不被 Spring 自动扫描为组件。应用与工具统一 Flyway 11.7.2，工具固定完整 dev locations。数据库允许目标为 loopback 的 gba_dev；`gba_seed_it_<hex>` 仅用于隔离验证。其他目标、未知缺失、失败、V 校验和变化、未知待迁移或新 R 已改写均阻断。
+
+Agent 持久化增加 V5/R030、物流模块追加 V6/R040 后，维护工具的显式白名单相应增加这四份脚本：支持成功 V1–V6，或历史 V5 仅待 V6，或历史 V4 仅待 V5/V6，或历史 V3 待 V4/V5/V6。改名 repair 仍只针对两份已知旧 R，之后按审阅计划执行四份新 R 和明确待执行的 V；不放行任意未来版本或未知 R。已经使用 010/020 的正常 V4 库通过普通 migrate 增量应用 V5/V6 与 R030/R040，无需执行改名 repair。历史旧 SQL 测试固定 target=4，避免把未来表结构当成历史快照。
 
 ## 人工维护清单
 

@@ -2,6 +2,9 @@ server:
   port: 8080
 
 spring:
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
   profiles:
     active: dev
   main:
@@ -32,7 +35,7 @@ springdoc:
   swagger-ui:
     enabled: ${merchant.openapi.enabled:true}
     path: /swagger-ui.html
-  packages-to-scan: com.gba.merchantbao.legacy,com.gba.merchantbao.api,com.gba.merchantbao.auth.controller,com.gba.merchantbao.shipment.controller
+  packages-to-scan: com.gba.merchantbao.legacy,com.gba.merchantbao.api,com.gba.merchantbao.auth.controller,com.gba.merchantbao.chat.controller,com.gba.merchantbao.shipment.controller
 
 mybatis:
   #mapper配置文件
@@ -51,6 +54,9 @@ logging:
     com.gba.merchantbao.legacy.controller: info
 
 merchant:
+  agent:
+    enabled: false
+    prompt-version: assistant-v1
   id:
     # Single-instance default. Concurrent instances sharing a database need distinct worker IDs.
     worker-id: ${MERCHANT_ID_WORKER_ID:0}

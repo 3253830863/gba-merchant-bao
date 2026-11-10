@@ -1,0 +1,1852 @@
+openapi: 3.1.0
+info:
+  title: Agent conversation API
+  description: 消费者和员工仅访问本商户本人会话。Bearer 来自既有认证；禁用模型时仍可读历史。MySQL 为运行终态来源。所有响应 no-store。
+  version: v1
+servers:
+- url: /
+paths:
+  /api/v1/chat/sessions:
+    get:
+      tags:
+      - Agent conversation
+      summary: 分页列出本人会话
+      operationId: listChatSessions
+      parameters:
+      - name: X-Request-Id
+        in: header
+        description: 非法/缺失时服务器生成；所有帧与响应头使用相同值
+        required: false
+        schema:
+          type: string
+          pattern: "^[A-Za-z0-9._:-]{1,128}$"
+      - name: size
+        in: query
+        schema:
+          type: integer
+          format: int32
+          default: 20
+          maximum: 100
+          minimum: 1
+      - name: cursor
+        in: query
+        description: 不透明、资源绑定的游标；省略为首页，未知/重复参数拒绝
+        schema:
+          type: string
+          maxLength: 512
+          pattern: "^[A-Za-z0-9_-]+$"
+      responses:
+        "200":
+          description: 成功
+          headers:
+            X-Request-Id:
+              schema:
+                type: string
+            Cache-Control:
+              description: 包含 no-store
+              schema:
+                type: string
+                example: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatSessionPageEnvelope"
+        "400":
+          description: 10001 参数无效；13001 上下文预算不足
+          headers:
+            X-Request-Id:
+              schema:
+                type: string
+            Cache-Control:
+              description: 包含 no-store
+              schema:
+                type: string
+                example: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatError"
+              example:
+                code: 10001
+                message: 10001 参数无效；13001 上下文预算不足
+                data: null
+                requestId: chat-example
+        "401":
+          description: 10002 Bearer 缺失/失效
+          headers:
+            X-Request-Id:
+              schema:
+                type: string
+            Cache-Control:
+              description: 包含 no-store
+              schema:
+                type: string
+                example: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatError"
+              example:
+                code: 10002
+                message: 10002 Bearer 缺失/失效
+                data: null
+                requestId: chat-example
+        "403":
+          description: 10003 角色越权
+          headers:
+            X-Request-Id:
+              schema:
+                type: string
+            Cache-Control:
+              description: 包含 no-store
+              schema:
+                type: string
+                example: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatError"
+              example:
+                code: 10003
+                message: 10003 角色越权
+                data: null
+                requestId: chat-example
+        "404":
+          description: 10004 不存在、跨商户或他人资源，统一不可见
+          headers:
+            X-Request-Id:
+              schema:
+                type: string
+            Cache-Control:
+              description: 包含 no-store
+              schema:
+                type: string
+                example: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatError"
+              example:
+                code: 10004
+                message: 10004 不存在、跨商户或他人资源，统一不可见
+                data: null
+                requestId: chat-example
+        "409":
+          description: 13002 运行中 busy；13003 幂等正文冲突；13004 已归档
+          headers:
+            X-Request-Id:
+              schema:
+                type: string
+            Cache-Control:
+              description: 包含 no-store
+              schema:
+                type: string
+                example: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatError"
+              example:
+                code: 13002
+                message: 13002 运行中 busy；13003 幂等正文冲突；13004 已归档
+                data: null
+                requestId: chat-example
+        "406":
+          description: 10001 无法协商成功 MIME
+          headers:
+            X-Request-Id:
+              schema:
+                type: string
+            Cache-Control:
+              description: 包含 no-store
+              schema:
+                type: string
+                example: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatError"
+              example:
+                code: 10001
+                message: 10001 无法协商成功 MIME
+                data: null
+                requestId: chat-example
+        "415":
+          description: 10001 不支持请求 MIME
+          headers:
+            X-Request-Id:
+              schema:
+                type: string
+            Cache-Control:
+              description: 包含 no-store
+              schema:
+                type: string
+                example: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatError"
+              example:
+                code: 10001
+                message: 10001 不支持请求 MIME
+                data: null
+                requestId: chat-example
+        "503":
+          description: 13501 模型禁用；13502 模型依赖不可用；13504 MySQL 不可用
+          headers:
+            X-Request-Id:
+              schema:
+                type: string
+            Cache-Control:
+              description: 包含 no-store
+              schema:
+                type: string
+                example: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatError"
+              example:
+                code: 13502
+                message: 13501 模型禁用；13502 模型依赖不可用；13504 MySQL 不可用
+                data: null
+                requestId: chat-example
+        "504":
+          description: 13503 超时（建流前）
+          headers:
+            X-Request-Id:
+              schema:
+                type: string
+            Cache-Control:
+              description: 包含 no-store
+              schema:
+                type: string
+                example: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatError"
+              example:
+                code: 13503
+                message: 13503 超时（建流前）
+                data: null
+                requestId: chat-example
+        "500":
+          description: 10500 内部错误
+          headers:
+            X-Request-Id:
+              schema:
+                type: string
+            Cache-Control:
+              description: 包含 no-store
+              schema:
+                type: string
+                example: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatError"
+              example:
+                code: 10500
+                message: 10500 内部错误
+                data: null
+                requestId: chat-example
+      security:
+      - chatBearer: []
+    post:
+      tags:
+      - Agent conversation
+      summary: 创建本人会话
+      operationId: createChatSession
+      parameters:
+      - name: X-Request-Id
+        in: header
+        description: 非法/缺失时服务器生成；所有帧与响应头使用相同值
+        required: false
+        schema:
+          type: string
+          pattern: "^[A-Za-z0-9._:-]{1,128}$"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                title:
+                  type: string
+                  description: 可省略；先去除首尾空白，最多 200 Unicode 字符；空白使用新对话
+                  maxLength: 200
+        required: false
+      responses:
+        "201":
+          description: 成功
+          headers:
+            X-Request-Id:
+              schema:
+                type: string
+            Cache-Control:
+              description: 包含 no-store
+              schema:
+                type: string
+                example: no-store
+            Location:
+              description: "/api/v1/chat/sessions/{sessionId}"
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatSessionEnvelope"
+        "400":
+          description: 10001 参数无效；13001 上下文预算不足
+          headers:
+            X-Request-Id:
+              schema:
+                type: string
+            Cache-Control:
+              description: 包含 no-store
+              schema:
+                type: string
+                example: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatError"
+              example:
+                code: 10001
+                message: 10001 参数无效；13001 上下文预算不足
+                data: null
+                requestId: chat-example
+        "401":
+          description: 10002 Bearer 缺失/失效
+          headers:
+            X-Request-Id:
+              schema:
+                type: string
+            Cache-Control:
+              description: 包含 no-store
+              schema:
+                type: string
+                example: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatError"
+              example:
+                code: 10002
+                message: 10002 Bearer 缺失/失效
+                data: null
+                requestId: chat-example
+        "403":
+          description: 10003 角色越权
+          headers:
+            X-Request-Id:
+              schema:
+                type: string
+            Cache-Control:
+              description: 包含 no-store
+              schema:
+                type: string
+                example: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatError"
+              example:
+                code: 10003
+                message: 10003 角色越权
+                data: null
+                requestId: chat-example
+        "404":
+          description: 10004 不存在、跨商户或他人资源，统一不可见
+          headers:
+            X-Request-Id:
+              schema:
+                type: string
+            Cache-Control:
+              description: 包含 no-store
+              schema:
+                type: string
+                example: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatError"
+              example:
+                code: 10004
+                message: 10004 不存在、跨商户或他人资源，统一不可见
+                data: null
+                requestId: chat-example
+        "409":
+          description: 13002 运行中 busy；13003 幂等正文冲突；13004 已归档
+          headers:
+            X-Request-Id:
+              schema:
+                type: string
+            Cache-Control:
+              description: 包含 no-store
+              schema:
+                type: string
+                example: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatError"
+              example:
+                code: 13002
+                message: 13002 运行中 busy；13003 幂等正文冲突；13004 已归档
+                data: null
+                requestId: chat-example
+        "406":
+          description: 10001 无法协商成功 MIME
+          headers:
+            X-Request-Id:
+              schema:
+                type: string
+            Cache-Control:
+              description: 包含 no-store
+              schema:
+                type: string
+                example: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatError"
+              example:
+                code: 10001
+                message: 10001 无法协商成功 MIME
+                data: null
+                requestId: chat-example
+        "415":
+          description: 10001 不支持请求 MIME
+          headers:
+            X-Request-Id:
+              schema:
+                type: string
+            Cache-Control:
+              description: 包含 no-store
+              schema:
+                type: string
+                example: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatError"
+              example:
+                code: 10001
+                message: 10001 不支持请求 MIME
+                data: null
+                requestId: chat-example
+        "503":
+          description: 13501 模型禁用；13502 模型依赖不可用；13504 MySQL 不可用
+          headers:
+            X-Request-Id:
+              schema:
+                type: string
+            Cache-Control:
+              description: 包含 no-store
+              schema:
+                type: string
+                example: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatError"
+              example:
+                code: 13502
+                message: 13501 模型禁用；13502 模型依赖不可用；13504 MySQL 不可用
+                data: null
+                requestId: chat-example
+        "504":
+          description: 13503 超时（建流前）
+          headers:
+            X-Request-Id:
+              schema:
+                type: string
+            Cache-Control:
+              description: 包含 no-store
+              schema:
+                type: string
+                example: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatError"
+              example:
+                code: 13503
+                message: 13503 超时（建流前）
+                data: null
+                requestId: chat-example
+        "500":
+          description: 10500 内部错误
+          headers:
+            X-Request-Id:
+              schema:
+                type: string
+            Cache-Control:
+              description: 包含 no-store
+              schema:
+                type: string
+                example: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatError"
+              example:
+                code: 10500
+                message: 10500 内部错误
+                data: null
+                requestId: chat-example
+      security:
+      - chatBearer: []
+  /api/v1/chat/sessions/{sessionId}:
+    get:
+      tags:
+      - Agent conversation
+      summary: 查询本人会话及有效运行状态
+      operationId: getChatSession
+      parameters:
+      - name: X-Request-Id
+        in: header
+        description: 非法/缺失时服务器生成；所有帧与响应头使用相同值
+        required: false
+        schema:
+          type: string
+          pattern: "^[A-Za-z0-9._:-]{1,128}$"
+      - name: sessionId
+        in: path
+        required: true
+        schema:
+          type: string
+          description: 正十进制 BIGINT 字符串，最大 9223372036854775807
+          example: "300000000000000001"
+          pattern: "^[1-9][0-9]{0,18}$"
+      responses:
+        "200":
+          description: 成功
+          headers:
+            X-Request-Id:
+              schema:
+                type: string
+            Cache-Control:
+              description: 包含 no-store
+              schema:
+                type: string
+                example: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatSessionEnvelope"
+        "400":
+          description: 10001 参数无效；13001 上下文预算不足
+          headers:
+            X-Request-Id:
+              schema:
+                type: string
+            Cache-Control:
+              description: 包含 no-store
+              schema:
+                type: string
+                example: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatError"
+              example:
+                code: 10001
+                message: 10001 参数无效；13001 上下文预算不足
+                data: null
+                requestId: chat-example
+        "401":
+          description: 10002 Bearer 缺失/失效
+          headers:
+            X-Request-Id:
+              schema:
+                type: string
+            Cache-Control:
+              description: 包含 no-store
+              schema:
+                type: string
+                example: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatError"
+              example:
+                code: 10002
+                message: 10002 Bearer 缺失/失效
+                data: null
+                requestId: chat-example
+        "403":
+          description: 10003 角色越权
+          headers:
+            X-Request-Id:
+              schema:
+                type: string
+            Cache-Control:
+              description: 包含 no-store
+              schema:
+                type: string
+                example: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatError"
+              example:
+                code: 10003
+                message: 10003 角色越权
+                data: null
+                requestId: chat-example
+        "404":
+          description: 10004 不存在、跨商户或他人资源，统一不可见
+          headers:
+            X-Request-Id:
+              schema:
+                type: string
+            Cache-Control:
+              description: 包含 no-store
+              schema:
+                type: string
+                example: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatError"
+              example:
+                code: 10004
+                message: 10004 不存在、跨商户或他人资源，统一不可见
+                data: null
+                requestId: chat-example
+        "409":
+          description: 13002 运行中 busy；13003 幂等正文冲突；13004 已归档
+          headers:
+            X-Request-Id:
+              schema:
+                type: string
+            Cache-Control:
+              description: 包含 no-store
+              schema:
+                type: string
+                example: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatError"
+              example:
+                code: 13002
+                message: 13002 运行中 busy；13003 幂等正文冲突；13004 已归档
+                data: null
+                requestId: chat-example
+        "406":
+          description: 10001 无法协商成功 MIME
+          headers:
+            X-Request-Id:
+              schema:
+                type: string
+            Cache-Control:
+              description: 包含 no-store
+              schema:
+                type: string
+                example: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatError"
+              example:
+                code: 10001
+                message: 10001 无法协商成功 MIME
+                data: null
+                requestId: chat-example
+        "415":
+          description: 10001 不支持请求 MIME
+          headers:
+            X-Request-Id:
+              schema:
+                type: string
+            Cache-Control:
+              description: 包含 no-store
+              schema:
+                type: string
+                example: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatError"
+              example:
+                code: 10001
+                message: 10001 不支持请求 MIME
+                data: null
+                requestId: chat-example
+        "503":
+          description: 13501 模型禁用；13502 模型依赖不可用；13504 MySQL 不可用
+          headers:
+            X-Request-Id:
+              schema:
+                type: string
+            Cache-Control:
+              description: 包含 no-store
+              schema:
+                type: string
+                example: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatError"
+              example:
+                code: 13502
+                message: 13501 模型禁用；13502 模型依赖不可用；13504 MySQL 不可用
+                data: null
+                requestId: chat-example
+        "504":
+          description: 13503 超时（建流前）
+          headers:
+            X-Request-Id:
+              schema:
+                type: string
+            Cache-Control:
+              description: 包含 no-store
+              schema:
+                type: string
+                example: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatError"
+              example:
+                code: 13503
+                message: 13503 超时（建流前）
+                data: null
+                requestId: chat-example
+        "500":
+          description: 10500 内部错误
+          headers:
+            X-Request-Id:
+              schema:
+                type: string
+            Cache-Control:
+              description: 包含 no-store
+              schema:
+                type: string
+                example: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatError"
+              example:
+                code: 10500
+                message: 10500 内部错误
+                data: null
+                requestId: chat-example
+      security:
+      - chatBearer: []
+  /api/v1/chat/sessions/{sessionId}/archive:
+    post:
+      tags:
+      - Agent conversation
+      summary: 幂等归档本人会话；运行中返回 busy
+      operationId: archiveChatSession
+      parameters:
+      - name: X-Request-Id
+        in: header
+        description: 非法/缺失时服务器生成；所有帧与响应头使用相同值
+        required: false
+        schema:
+          type: string
+          pattern: "^[A-Za-z0-9._:-]{1,128}$"
+      - name: sessionId
+        in: path
+        required: true
+        schema:
+          type: string
+          description: 正十进制 BIGINT 字符串，最大 9223372036854775807
+          example: "300000000000000001"
+          pattern: "^[1-9][0-9]{0,18}$"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              description: 允许无 body 或空对象；拒绝 null/未知字段
+        required: false
+      responses:
+        "200":
+          description: 成功
+          headers:
+            X-Request-Id:
+              schema:
+                type: string
+            Cache-Control:
+              description: 包含 no-store
+              schema:
+                type: string
+                example: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatSessionEnvelope"
+        "400":
+          description: 10001 参数无效；13001 上下文预算不足
+          headers:
+            X-Request-Id:
+              schema:
+                type: string
+            Cache-Control:
+              description: 包含 no-store
+              schema:
+                type: string
+                example: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatError"
+              example:
+                code: 10001
+                message: 10001 参数无效；13001 上下文预算不足
+                data: null
+                requestId: chat-example
+        "401":
+          description: 10002 Bearer 缺失/失效
+          headers:
+            X-Request-Id:
+              schema:
+                type: string
+            Cache-Control:
+              description: 包含 no-store
+              schema:
+                type: string
+                example: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatError"
+              example:
+                code: 10002
+                message: 10002 Bearer 缺失/失效
+                data: null
+                requestId: chat-example
+        "403":
+          description: 10003 角色越权
+          headers:
+            X-Request-Id:
+              schema:
+                type: string
+            Cache-Control:
+              description: 包含 no-store
+              schema:
+                type: string
+                example: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatError"
+              example:
+                code: 10003
+                message: 10003 角色越权
+                data: null
+                requestId: chat-example
+        "404":
+          description: 10004 不存在、跨商户或他人资源，统一不可见
+          headers:
+            X-Request-Id:
+              schema:
+                type: string
+            Cache-Control:
+              description: 包含 no-store
+              schema:
+                type: string
+                example: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatError"
+              example:
+                code: 10004
+                message: 10004 不存在、跨商户或他人资源，统一不可见
+                data: null
+                requestId: chat-example
+        "409":
+          description: 13002 运行中 busy；13003 幂等正文冲突；13004 已归档
+          headers:
+            X-Request-Id:
+              schema:
+                type: string
+            Cache-Control:
+              description: 包含 no-store
+              schema:
+                type: string
+                example: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatError"
+              example:
+                code: 13002
+                message: 13002 运行中 busy；13003 幂等正文冲突；13004 已归档
+                data: null
+                requestId: chat-example
+        "406":
+          description: 10001 无法协商成功 MIME
+          headers:
+            X-Request-Id:
+              schema:
+                type: string
+            Cache-Control:
+              description: 包含 no-store
+              schema:
+                type: string
+                example: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatError"
+              example:
+                code: 10001
+                message: 10001 无法协商成功 MIME
+                data: null
+                requestId: chat-example
+        "415":
+          description: 10001 不支持请求 MIME
+          headers:
+            X-Request-Id:
+              schema:
+                type: string
+            Cache-Control:
+              description: 包含 no-store
+              schema:
+                type: string
+                example: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatError"
+              example:
+                code: 10001
+                message: 10001 不支持请求 MIME
+                data: null
+                requestId: chat-example
+        "503":
+          description: 13501 模型禁用；13502 模型依赖不可用；13504 MySQL 不可用
+          headers:
+            X-Request-Id:
+              schema:
+                type: string
+            Cache-Control:
+              description: 包含 no-store
+              schema:
+                type: string
+                example: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatError"
+              example:
+                code: 13502
+                message: 13501 模型禁用；13502 模型依赖不可用；13504 MySQL 不可用
+                data: null
+                requestId: chat-example
+        "504":
+          description: 13503 超时（建流前）
+          headers:
+            X-Request-Id:
+              schema:
+                type: string
+            Cache-Control:
+              description: 包含 no-store
+              schema:
+                type: string
+                example: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatError"
+              example:
+                code: 13503
+                message: 13503 超时（建流前）
+                data: null
+                requestId: chat-example
+        "500":
+          description: 10500 内部错误
+          headers:
+            X-Request-Id:
+              schema:
+                type: string
+            Cache-Control:
+              description: 包含 no-store
+              schema:
+                type: string
+                example: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatError"
+              example:
+                code: 10500
+                message: 10500 内部错误
+                data: null
+                requestId: chat-example
+      security:
+      - chatBearer: []
+  /api/v1/chat/sessions/{sessionId}/messages:
+    get:
+      tags:
+      - Agent conversation
+      summary: 按 messageSeq 升序读取本人消息；含失败轮次与部分文本
+      operationId: listChatMessages
+      parameters:
+      - name: X-Request-Id
+        in: header
+        description: 非法/缺失时服务器生成；所有帧与响应头使用相同值
+        required: false
+        schema:
+          type: string
+          pattern: "^[A-Za-z0-9._:-]{1,128}$"
+      - name: sessionId
+        in: path
+        required: true
+        schema:
+          type: string
+          description: 正十进制 BIGINT 字符串，最大 9223372036854775807
+          example: "300000000000000001"
+          pattern: "^[1-9][0-9]{0,18}$"
+      - name: size
+        in: query
+        schema:
+          type: integer
+          format: int32
+          default: 20
+          maximum: 100
+          minimum: 1
+      - name: cursor
+        in: query
+        description: 不透明、资源绑定的游标；省略为首页，未知/重复参数拒绝
+        schema:
+          type: string
+          maxLength: 512
+          pattern: "^[A-Za-z0-9_-]+$"
+      responses:
+        "200":
+          description: 成功
+          headers:
+            X-Request-Id:
+              schema:
+                type: string
+            Cache-Control:
+              description: 包含 no-store
+              schema:
+                type: string
+                example: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatMessagePageEnvelope"
+        "400":
+          description: 10001 参数无效；13001 上下文预算不足
+          headers:
+            X-Request-Id:
+              schema:
+                type: string
+            Cache-Control:
+              description: 包含 no-store
+              schema:
+                type: string
+                example: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatError"
+              example:
+                code: 10001
+                message: 10001 参数无效；13001 上下文预算不足
+                data: null
+                requestId: chat-example
+        "401":
+          description: 10002 Bearer 缺失/失效
+          headers:
+            X-Request-Id:
+              schema:
+                type: string
+            Cache-Control:
+              description: 包含 no-store
+              schema:
+                type: string
+                example: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatError"
+              example:
+                code: 10002
+                message: 10002 Bearer 缺失/失效
+                data: null
+                requestId: chat-example
+        "403":
+          description: 10003 角色越权
+          headers:
+            X-Request-Id:
+              schema:
+                type: string
+            Cache-Control:
+              description: 包含 no-store
+              schema:
+                type: string
+                example: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatError"
+              example:
+                code: 10003
+                message: 10003 角色越权
+                data: null
+                requestId: chat-example
+        "404":
+          description: 10004 不存在、跨商户或他人资源，统一不可见
+          headers:
+            X-Request-Id:
+              schema:
+                type: string
+            Cache-Control:
+              description: 包含 no-store
+              schema:
+                type: string
+                example: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatError"
+              example:
+                code: 10004
+                message: 10004 不存在、跨商户或他人资源，统一不可见
+                data: null
+                requestId: chat-example
+        "409":
+          description: 13002 运行中 busy；13003 幂等正文冲突；13004 已归档
+          headers:
+            X-Request-Id:
+              schema:
+                type: string
+            Cache-Control:
+              description: 包含 no-store
+              schema:
+                type: string
+                example: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatError"
+              example:
+                code: 13002
+                message: 13002 运行中 busy；13003 幂等正文冲突；13004 已归档
+                data: null
+                requestId: chat-example
+        "406":
+          description: 10001 无法协商成功 MIME
+          headers:
+            X-Request-Id:
+              schema:
+                type: string
+            Cache-Control:
+              description: 包含 no-store
+              schema:
+                type: string
+                example: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatError"
+              example:
+                code: 10001
+                message: 10001 无法协商成功 MIME
+                data: null
+                requestId: chat-example
+        "415":
+          description: 10001 不支持请求 MIME
+          headers:
+            X-Request-Id:
+              schema:
+                type: string
+            Cache-Control:
+              description: 包含 no-store
+              schema:
+                type: string
+                example: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatError"
+              example:
+                code: 10001
+                message: 10001 不支持请求 MIME
+                data: null
+                requestId: chat-example
+        "503":
+          description: 13501 模型禁用；13502 模型依赖不可用；13504 MySQL 不可用
+          headers:
+            X-Request-Id:
+              schema:
+                type: string
+            Cache-Control:
+              description: 包含 no-store
+              schema:
+                type: string
+                example: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatError"
+              example:
+                code: 13502
+                message: 13501 模型禁用；13502 模型依赖不可用；13504 MySQL 不可用
+                data: null
+                requestId: chat-example
+        "504":
+          description: 13503 超时（建流前）
+          headers:
+            X-Request-Id:
+              schema:
+                type: string
+            Cache-Control:
+              description: 包含 no-store
+              schema:
+                type: string
+                example: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatError"
+              example:
+                code: 13503
+                message: 13503 超时（建流前）
+                data: null
+                requestId: chat-example
+        "500":
+          description: 10500 内部错误
+          headers:
+            X-Request-Id:
+              schema:
+                type: string
+            Cache-Control:
+              description: 包含 no-store
+              schema:
+                type: string
+                example: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatError"
+              example:
+                code: 10500
+                message: 10500 内部错误
+                data: null
+                requestId: chat-example
+      security:
+      - chatBearer: []
+    post:
+      tags:
+      - Agent conversation
+      summary: 提交消息并生成 SSE，或返回同 key 同正文的原 run JSON
+      description: 必须同时处理 text/event-stream 和 application/json。幂等先于 busy/归档判断；key
+        相同正文不同返回 409。客户端不能覆盖身份、system、role 或模型。断开后查历史，不支持 Last-Event-ID 重放。citation/tool_call
+        留待未来扩展，本期不发送。
+      operationId: sendChatMessage
+      parameters:
+      - name: X-Request-Id
+        in: header
+        description: 非法/缺失时服务器生成；所有帧与响应头使用相同值
+        required: false
+        schema:
+          type: string
+          pattern: "^[A-Za-z0-9._:-]{1,128}$"
+      - name: sessionId
+        in: path
+        required: true
+        schema:
+          type: string
+          description: 正十进制 BIGINT 字符串，最大 9223372036854775807
+          example: "300000000000000001"
+          pattern: "^[1-9][0-9]{0,18}$"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                content:
+                  type: string
+                  description: 非空白；保留原文，限制按 Unicode 字符计数
+                  maxLength: 4000
+                  minLength: 1
+                clientMessageId:
+                  type: string
+                  example: 00000000-0000-4000-8000-000000000001
+                  pattern: "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              required:
+              - content
+              - clientMessageId
+        required: true
+      responses:
+        "200":
+          description: 新 run 为 SSE；重复提交为 JSON 原标识。SSE 首帧 start，随后非空 token，最后仅 done
+            或 error。done 前终态已提交。注释 heartbeat 不续期认证。
+          headers:
+            X-Request-Id:
+              schema:
+                type: string
+            Cache-Control:
+              description: 包含 no-store
+              schema:
+                type: string
+                example: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatRunEnvelope"
+            text/event-stream:
+              schema:
+                type: string
+              examples:
+                completed:
+                  summary: start → token → done；usage 未提供为 null
+                  value: |+
+                    id: 41:1
+                    event: start
+                    data: {"version":"v1","runId":"41","sessionId":"31","messageId":"61","requestId":"chat-example","userMessageId":"51"}
+
+                    id: 41:2
+                    event: token
+                    data: {"version":"v1","runId":"41","sessionId":"31","messageId":"61","requestId":"chat-example","delta":"你好"}
+
+                    id: 41:3
+                    event: done
+                    data: {"version":"v1","runId":"41","sessionId":"31","messageId":"61","requestId":"chat-example","status":"COMPLETED","usage":null}
+
+                timeout:
+                  summary: start 后的超时终态；HTTP 已为 200
+                  value: |+
+                    id: 41:1
+                    event: start
+                    data: {"version":"v1","runId":"41","sessionId":"31","messageId":"61","requestId":"chat-example","userMessageId":"51"}
+
+                    id: 41:2
+                    event: error
+                    data: {"version":"v1","runId":"41","sessionId":"31","messageId":"61","requestId":"chat-example","code":"TIMEOUT","message":"模型响应超时","terminalStatus":"TIMED_OUT"}
+
+        "400":
+          description: 10001 参数无效；13001 上下文预算不足
+          headers:
+            X-Request-Id:
+              schema:
+                type: string
+            Cache-Control:
+              description: 包含 no-store
+              schema:
+                type: string
+                example: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatError"
+              example:
+                code: 10001
+                message: 10001 参数无效；13001 上下文预算不足
+                data: null
+                requestId: chat-example
+        "401":
+          description: 10002 Bearer 缺失/失效
+          headers:
+            X-Request-Id:
+              schema:
+                type: string
+            Cache-Control:
+              description: 包含 no-store
+              schema:
+                type: string
+                example: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatError"
+              example:
+                code: 10002
+                message: 10002 Bearer 缺失/失效
+                data: null
+                requestId: chat-example
+        "403":
+          description: 10003 角色越权
+          headers:
+            X-Request-Id:
+              schema:
+                type: string
+            Cache-Control:
+              description: 包含 no-store
+              schema:
+                type: string
+                example: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatError"
+              example:
+                code: 10003
+                message: 10003 角色越权
+                data: null
+                requestId: chat-example
+        "404":
+          description: 10004 不存在、跨商户或他人资源，统一不可见
+          headers:
+            X-Request-Id:
+              schema:
+                type: string
+            Cache-Control:
+              description: 包含 no-store
+              schema:
+                type: string
+                example: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatError"
+              example:
+                code: 10004
+                message: 10004 不存在、跨商户或他人资源，统一不可见
+                data: null
+                requestId: chat-example
+        "409":
+          description: 13002 运行中 busy；13003 幂等正文冲突；13004 已归档
+          headers:
+            X-Request-Id:
+              schema:
+                type: string
+            Cache-Control:
+              description: 包含 no-store
+              schema:
+                type: string
+                example: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatError"
+              example:
+                code: 13002
+                message: 13002 运行中 busy；13003 幂等正文冲突；13004 已归档
+                data: null
+                requestId: chat-example
+        "406":
+          description: 10001 无法协商成功 MIME
+          headers:
+            X-Request-Id:
+              schema:
+                type: string
+            Cache-Control:
+              description: 包含 no-store
+              schema:
+                type: string
+                example: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatError"
+              example:
+                code: 10001
+                message: 10001 无法协商成功 MIME
+                data: null
+                requestId: chat-example
+        "415":
+          description: 10001 不支持请求 MIME
+          headers:
+            X-Request-Id:
+              schema:
+                type: string
+            Cache-Control:
+              description: 包含 no-store
+              schema:
+                type: string
+                example: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatError"
+              example:
+                code: 10001
+                message: 10001 不支持请求 MIME
+                data: null
+                requestId: chat-example
+        "503":
+          description: 13501 模型禁用；13502 模型依赖不可用；13504 MySQL 不可用
+          headers:
+            X-Request-Id:
+              schema:
+                type: string
+            Cache-Control:
+              description: 包含 no-store
+              schema:
+                type: string
+                example: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatError"
+              example:
+                code: 13502
+                message: 13501 模型禁用；13502 模型依赖不可用；13504 MySQL 不可用
+                data: null
+                requestId: chat-example
+        "504":
+          description: 13503 超时（建流前）
+          headers:
+            X-Request-Id:
+              schema:
+                type: string
+            Cache-Control:
+              description: 包含 no-store
+              schema:
+                type: string
+                example: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatError"
+              example:
+                code: 13503
+                message: 13503 超时（建流前）
+                data: null
+                requestId: chat-example
+        "500":
+          description: 10500 内部错误
+          headers:
+            X-Request-Id:
+              schema:
+                type: string
+            Cache-Control:
+              description: 包含 no-store
+              schema:
+                type: string
+                example: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatError"
+              example:
+                code: 10500
+                message: 10500 内部错误
+                data: null
+                requestId: chat-example
+      security:
+      - chatBearer: []
+components:
+  schemas:
+    ChatSession:
+      type: object
+      additionalProperties: false
+      properties:
+        sessionId:
+          type: string
+          description: 正十进制 BIGINT 字符串，最大 9223372036854775807
+          example: "300000000000000001"
+          pattern: "^[1-9][0-9]{0,18}$"
+        merchantId:
+          type: string
+          description: 正十进制 BIGINT 字符串，最大 9223372036854775807
+          example: "300000000000000001"
+          pattern: "^[1-9][0-9]{0,18}$"
+        title:
+          type: string
+        status:
+          type: string
+          enum:
+          - ACTIVE
+          - ARCHIVED
+        createdAt:
+          type: string
+          format: date-time
+          description: UTC ISO-8601，Z 后缀
+          example: 2026-11-08T01:02:03.456Z
+        updatedAt:
+          type: string
+          format: date-time
+          description: UTC ISO-8601，Z 后缀
+          example: 2026-11-08T01:02:03.456Z
+        archivedAt:
+          anyOf:
+          - type: string
+            format: date-time
+            description: UTC ISO-8601，Z 后缀
+            example: 2026-11-08T01:02:03.456Z
+          - type: "null"
+        activeRunId:
+          anyOf:
+          - type: string
+            description: 正十进制 BIGINT 字符串，最大 9223372036854775807
+            example: "300000000000000001"
+            pattern: "^[1-9][0-9]{0,18}$"
+          - type: "null"
+        activeRunStatus:
+          anyOf:
+          - type: string
+            enum:
+            - STARTED
+            - STREAMING
+          - type: "null"
+      required:
+      - sessionId
+      - merchantId
+      - title
+      - status
+      - createdAt
+      - updatedAt
+      - archivedAt
+      - activeRunId
+      - activeRunStatus
+    ChatMessage:
+      type: object
+      additionalProperties: false
+      properties:
+        messageId:
+          type: string
+          description: 正十进制 BIGINT 字符串，最大 9223372036854775807
+          example: "300000000000000001"
+          pattern: "^[1-9][0-9]{0,18}$"
+        messageSeq:
+          type: integer
+          format: int64
+          minimum: 1
+        runId:
+          type: string
+          description: 正十进制 BIGINT 字符串，最大 9223372036854775807
+          example: "300000000000000001"
+          pattern: "^[1-9][0-9]{0,18}$"
+        clientMessageId:
+          anyOf:
+          - type: string
+          - type: "null"
+        senderType:
+          type: string
+          enum:
+          - USER
+          - ASSISTANT
+        content:
+          type: string
+        status:
+          type: string
+          enum:
+          - STARTED
+          - STREAMING
+          - COMPLETED
+          - CANCELLED
+          - TIMED_OUT
+          - FAILED
+        errorCode:
+          anyOf:
+          - type: string
+          - type: "null"
+        inputTokens:
+          anyOf:
+          - type: integer
+            format: int64
+            minimum: 0
+          - type: "null"
+        outputTokens:
+          anyOf:
+          - type: integer
+            format: int64
+            minimum: 0
+          - type: "null"
+        createdAt:
+          type: string
+          format: date-time
+          description: UTC ISO-8601，Z 后缀
+          example: 2026-11-08T01:02:03.456Z
+        completedAt:
+          anyOf:
+          - type: string
+            format: date-time
+            description: UTC ISO-8601，Z 后缀
+            example: 2026-11-08T01:02:03.456Z
+          - type: "null"
+      required:
+      - messageId
+      - messageSeq
+      - runId
+      - clientMessageId
+      - senderType
+      - content
+      - status
+      - errorCode
+      - inputTokens
+      - outputTokens
+      - createdAt
+      - completedAt
+    ChatRun:
+      type: object
+      additionalProperties: false
+      properties:
+        sessionId:
+          type: string
+          description: 正十进制 BIGINT 字符串，最大 9223372036854775807
+          example: "300000000000000001"
+          pattern: "^[1-9][0-9]{0,18}$"
+        runId:
+          type: string
+          description: 正十进制 BIGINT 字符串，最大 9223372036854775807
+          example: "300000000000000001"
+          pattern: "^[1-9][0-9]{0,18}$"
+        userMessageId:
+          type: string
+          description: 正十进制 BIGINT 字符串，最大 9223372036854775807
+          example: "300000000000000001"
+          pattern: "^[1-9][0-9]{0,18}$"
+        messageId:
+          type: string
+          description: 正十进制 BIGINT 字符串，最大 9223372036854775807
+          example: "300000000000000001"
+          pattern: "^[1-9][0-9]{0,18}$"
+        status:
+          type: string
+          enum:
+          - STARTED
+          - STREAMING
+          - COMPLETED
+          - CANCELLED
+          - TIMED_OUT
+          - FAILED
+      required:
+      - sessionId
+      - runId
+      - userMessageId
+      - messageId
+      - status
+    ChatError:
+      type: object
+      additionalProperties: false
+      properties:
+        code:
+          type: integer
+          format: int32
+        message:
+          type: string
+        data:
+          type: "null"
+        requestId:
+          type: string
+      required:
+      - code
+      - message
+      - data
+      - requestId
+    ChatSessionEnvelope:
+      type: object
+      additionalProperties: false
+      properties:
+        code:
+          type: integer
+          format: int32
+        message:
+          type: string
+        data:
+          $ref: "#/components/schemas/ChatSession"
+        requestId:
+          type: string
+      required:
+      - code
+      - message
+      - data
+      - requestId
+    ChatRunEnvelope:
+      type: object
+      additionalProperties: false
+      properties:
+        code:
+          type: integer
+          format: int32
+        message:
+          type: string
+        data:
+          $ref: "#/components/schemas/ChatRun"
+        requestId:
+          type: string
+      required:
+      - code
+      - message
+      - data
+      - requestId
+    ChatSessionPageEnvelope:
+      type: object
+      additionalProperties: false
+      properties:
+        code:
+          type: integer
+          format: int32
+        message:
+          type: string
+        data:
+          type: object
+          additionalProperties: false
+          properties:
+            items:
+              type: array
+              items:
+                $ref: "#/components/schemas/ChatSession"
+            nextCursor:
+              anyOf:
+              - type: string
+              - type: "null"
+            hasMore:
+              type: boolean
+          required:
+          - items
+          - nextCursor
+          - hasMore
+        requestId:
+          type: string
+      required:
+      - code
+      - message
+      - data
+      - requestId
+    ChatMessagePageEnvelope:
+      type: object
+      additionalProperties: false
+      properties:
+        code:
+          type: integer
+          format: int32
+        message:
+          type: string
+        data:
+          type: object
+          additionalProperties: false
+          properties:
+            items:
+              type: array
+              items:
+                $ref: "#/components/schemas/ChatMessage"
+            nextCursor:
+              anyOf:
+              - type: string
+              - type: "null"
+            hasMore:
+              type: boolean
+          required:
+          - items
+          - nextCursor
+          - hasMore
+        requestId:
+          type: string
+      required:
+      - code
+      - message
+      - data
+      - requestId
+  securitySchemes:
+    chatBearer:
+      type: http
+      description: 对应商户、消费者或员工的 access token；不是模型 API key
+      scheme: bearer
+    bearerAuth:
+      type: http
+      in: header
+      scheme: bearer
+      bearerFormat: JWT

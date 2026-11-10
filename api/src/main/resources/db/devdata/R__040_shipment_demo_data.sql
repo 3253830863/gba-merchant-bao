@@ -1,4 +1,5 @@
--- Development only. Shipment demo data for the shipment module (registry entry R__030).
+-- Development only. Shipment demo data for the shipment module (registry entry R__040;
+-- R__030 is already taken by the agent/conversation demo seed on main).
 -- The order module is not delivered yet: order_id/order_no below are standalone demo values;
 -- logical linkage to real orders happens when the order module lands (tasks 1.3).
 -- NOT_SHIPPED is synthesized by the service when no shipment row exists, so no NOT_SHIPPED rows are seeded.
