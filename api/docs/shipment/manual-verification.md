@@ -4,7 +4,7 @@
 
 ## 1. 启动与迁移
 
-1. 启动 API：Flyway 应依次执行 V1–V6，并加载 R__010/R__020/R__030/R__040（V5/R030 属会话模块）。
+1. 启动 API：Flyway 应依次执行 V1–V7，并加载 R__010/R__020/R__030/R__040/R__050（V5/R030 属会话模块）。
 2. 确认日志无迁移报错；`shipment`、`shipment_track` 表存在且含演示数据。
 
 ```sql
@@ -21,10 +21,11 @@ SELECT shipment_id, status, description FROM shipment_track ORDER BY shipment_id
 
 | 步骤 | 请求 | 预期 |
 | --- | --- | --- |
-| 员工查运输中 | `GET /api/v1/orders/3000000000000301/shipment` + 员工 token | 200，`IN_TRANSIT`、顺丰、`SF1000000000301`、3 段轨迹升序、`estimatedDeliveryAt` 存在 |
-| 员工查已签收 | `GET /api/v1/orders/3000000000000302/shipment` | 200，`DELIVERED` + `deliveredAt`，无 `estimatedDeliveryAt` 字段 |
-| 消费者查同租户 | 同上用消费者 token | 200（联调态；订单模块就绪后收口为仅本人订单） |
-| 跨租户员工 | M_ISOLATION_TEST 员工查 0301 | 404/10004 |
+| 员工查运输中 | `GET /api/v1/orders/2100000000000302/shipment` + 员工 token | 200，`IN_TRANSIT`、顺丰、`SF1000000000301`、3 段轨迹升序、`estimatedDeliveryAt` 存在 |
+| 员工查已签收 | `GET /api/v1/orders/2100000000000301/shipment` | 200，`DELIVERED` + `deliveredAt`，无 `estimatedDeliveryAt` 字段 |
+| 消费者查本人订单 | 同上，用消费者 `2100000000000201` 的 token | 200（`OrderBackedOrderAccessGuard` 校验本人归属） |
+| 消费者查他人订单 | 用消费者 `2100000000000202` 的 token 查 `2100000000000302` | 404/10004 |
+| 跨租户员工 | M_ISOLATION_TEST 员工查 `2100000000000302` | 404/10004 |
 | 不存在订单 | `GET /api/v1/orders/999/shipment` | 404/10004（与越权不可区分） |
 | 匿名 | 不带 Authorization | 401/10002 |
 | 非法 ID | `GET /api/v1/orders/abc/shipment` | 400/10001 |
@@ -37,7 +38,7 @@ SELECT shipment_id, status, description FROM shipment_track ORDER BY shipment_id
 1. WSDL：浏览器/HTTP GET `http://localhost:8080/services/shipment?wsdl` → 可访问，含 `queryShipmentByOrderNo` 与 `ping`。
 2. 无凭证调用（SoapUI 新建 SOAP 项目导入 WSDL）：请求被拒，Fault detail `invalid service credential`。
 3. 配置凭证：请求头加 `<q:serviceToken xmlns:q="https://gba.merchantbao/shipment/v1">与 SHIPMENT_WS_TOKEN 一致的值</q:serviceToken>`（放 SOAP Header，不是 HTTP Header）。
-4. 调用 `queryShipmentByOrderNo(M_3C_DEMO, SO-DEMO-0301)` → 返回 `IN_TRANSIT` 摘要与轨迹；`queryShipmentByOrderNo(M_3C_DEMO, missing)` → Fault detail `NOT_FOUND`。
+4. 调用 `queryShipmentByOrderNo(M_3C_DEMO, DEV-2026-0002)` → 返回 `IN_TRANSIT` 摘要与轨迹；`queryShipmentByOrderNo(M_3C_DEMO, missing)` → Fault detail `NOT_FOUND`。
 5. `ping` 操作 → 连通性问候串。
 6. 验证 `/services/**` 不影响 REST：匿名 `GET /api/v1/orders/.../shipment` 仍 401。
 
@@ -55,7 +56,7 @@ SELECT shipment_id, status, description FROM shipment_track ORDER BY shipment_id
   <soapenv:Body>
     <v1:queryShipmentByOrderNo>
       <merchantCode>M_3C_DEMO</merchantCode>
-      <orderNo>SO-DEMO-0301</orderNo>
+      <orderNo>DEV-2026-0002</orderNo>
     </v1:queryShipmentByOrderNo>
   </soapenv:Body>
 </soapenv:Envelope>
@@ -96,8 +97,8 @@ mvn -f api/pom.xml clean verify   # 单元测试 + 全部 IT（failsafe）
 - `ShipmentFlowIT`：REST 授权契约全场景。
 - `ShipmentSoapIT`：WSDL 可达、凭证门禁、往返摘要、NOT_FOUND、REST 链路不受影响。
 
-## 6. 已知限制（联调态）
+## 6. 已接入的能力与剩余限制
 
-1. 订单模块未交付：无运单记录的订单统一 404，不返回 200/NOT_SHIPPED（`OrderAccessGuard` 端口已预留，真实实现落地后自动合成）。
-2. 消费者个人归属校验（本人订单）待订单模块授权接入；当前仅租户级隔离由 SQL 谓词保证。
-3. Flyway 编号已定稿为 V6/R040（main 的 V5/R030 已被会话模块占用）；订单模块 V7/R050、库存模块 V8 排在其后。
+1. 订单归属授权已接入 `OrderBackedOrderAccessGuard`：消费者仅本人订单、员工限本商户；越权与不存在同为 404/10004。无运单记录的订单返回 200 + `NOT_SHIPPED`（服务合成，不落库）。
+2. 商品/SKU 模块未接入：订单项的 `product_id`/`sku_id` 仅为追溯引用，无外键与商品快照校验。
+3. Flyway 编号：物流 V6/R040（main 的 V5/R030 已被会话模块占用）、订单 V7/R050、库存 V8，按分支栈顺序落地。

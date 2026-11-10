@@ -17,7 +17,7 @@
 
 ## 3. ShipmentQueryService 与 REST
 
-- [x] 3.1 实现 `ShipmentQueryService`：按可信 Actor（消费者本人/员工同商户）+ 订单归属校验查询；SQL 层带 merchant_id 限定；订单不存在/越权统一 404/10004。授权端口 `OrderAccessGuard` 已预留（联调态实现 TenantScopedOrderAccessGuard）。
+- [x] 3.1 实现 `ShipmentQueryService`：按可信 Actor（消费者本人/员工同商户）+ 订单归属校验查询；SQL 层带 merchant_id 限定；订单不存在/越权统一 404/10004。授权端口 `OrderAccessGuard` 已在订单模块落地后替换为真实实现 OrderBackedOrderAccessGuard（联调态实现 TenantScopedOrderAccessGuard 已删除）。
 - [x] 3.2 实现 `GET /api/v1/orders/{orderId}/shipment` Controller 与严格 DTO；ID 字符串化、UTC 时间、no-store、统一 envelope；订单未发货态返回 `NOT_SHIPPED` + 空轨迹（依赖真实 OrderAccessGuard）。
 - [x] 3.3 HTTP 测试覆盖：消费者本人 200、员工同商户 200、跨租户/非本人/不存在统一 404、匿名 401、无物流记录（联调态为 404，真实 guard 落地后 200/NOT_SHIPPED）、预计送达缺失不返回。（`ShipmentFlowIT`，待 Docker 运行）
 
