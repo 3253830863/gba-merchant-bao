@@ -135,11 +135,11 @@ class OrderPersistenceIT {
 
         assertIndex(OrderQueryMapper.class, "findByCustomer",
                 Map.of("merchantId", demo, "customerId", 2000000000000201L, "limit", 1, "offset", 0),
-                "idx_orders_merchant_customer_placed");
+                "idx_trade_order_merchant_customer_placed");
         assertIndex(OrderQueryMapper.class, "findById",
-                Map.of("merchantId", demo, "orderId", 2000000000000301L), "PRIMARY", "uk_orders_merchant_id");
+                Map.of("merchantId", demo, "orderId", 2000000000000301L), "PRIMARY", "uk_trade_order_merchant_id");
         assertIndex(OrderItemQueryMapper.class, "findByOrder",
-                Map.of("merchantId", demo, "orderId", 2000000000000301L), "idx_order_item_merchant_order");
+                Map.of("merchantId", demo, "orderId", 2000000000000301L), "idx_trade_order_item_merchant_order");
     }
 
     @Test
@@ -147,19 +147,20 @@ class OrderPersistenceIT {
     void itemRowsCannotEscapeTheirOrderOrTenantByForeignKeys() {
         long demo = tenant("M_3C_DEMO"), isolated = tenant("M_ISOLATION_TEST");
         long orderId = 2000000000000901L, itemId = 2000000000000911L, customerId = 2000000000000201L;
-        jdbc.update("INSERT INTO orders (id, merchant_id, order_no, customer_id, status, pay_status, total_amount, currency) " +
+        jdbc.update("INSERT INTO trade_order (id, merchant_id, order_no, customer_id, status, pay_status, total_amount, currency) " +
                         "VALUES (?, ?, 'ORD-FK', ?, 'COMPLETED', 'PAID', 10.00, 'CNY')",
                 orderId, demo, customerId);
-        assertThatThrownBy(() -> jdbc.update("INSERT INTO order_item (id, merchant_id, order_id, product_id, sku_id, " +
+        assertThatThrownBy(() -> jdbc.update("INSERT INTO trade_order_item (id, merchant_id, order_id, product_id, sku_id, " +
                         "product_name_snapshot, unit_price, quantity, amount) VALUES (?, ?, ?, 1, 1, 'x', 10.00, 1, 10.00)",
                 itemId, isolated, orderId))
                 .isInstanceOf(DataIntegrityViolationException.class);
-        assertThatThrownBy(() -> jdbc.update("INSERT INTO orders (id, merchant_id, order_no, customer_id, status, " +
+        assertThatThrownBy(() -> jdbc.update("INSERT INTO trade_order (id, merchant_id, order_no, customer_id, status, " +
                         "pay_status, total_amount, currency) VALUES (?, ?, 'ORD-FK2', ?, 'COMPLETED', 'PAID', 10.00, 'CNY')",
                 2000000000000902L, demo, 2000000000000999L))
                 .isInstanceOf(DataIntegrityViolationException.class);
-        assertThatThrownBy(() -> jdbc.update("UPDATE orders SET status='SHIPPING' WHERE id=?", orderId))
-                .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
+        assertThatThrownBy(() -> jdbc.update("UPDATE trade_order SET status='SHIPPING' WHERE id=?", orderId))
+                .isInstanceOf(org.springframework.dao.NonTransientDataAccessException.class)
+                .hasMessageContaining("ck_trade_order_status");
         assertThat(orders.findById(demo, orderId).status()).isEqualTo("COMPLETED");
     }
 

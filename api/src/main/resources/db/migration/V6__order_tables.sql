@@ -1,8 +1,10 @@
 -- Order query module: consumer/staff read-only order facts with item trade snapshots.
+-- Table names trade_order/trade_order_item: the legacy baseline already owns `orders`,
+-- so the module tables carry a trade_ prefix.
 -- Design source: docs/initialization/设计手稿.md 1.1.4 (orders, order_item).
 -- Read-only scope per api/docs/architecture/module-roadmap.md section 4:
 -- no placement, payment or stock deduction writes are modelled in this change.
-CREATE TABLE `orders` (
+CREATE TABLE `trade_order` (
   `id` bigint NOT NULL COMMENT 'Snowflake primary key',
   `merchant_id` bigint NOT NULL,
   `order_no` varchar(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL COMMENT 'Tenant-visible order number',
@@ -17,18 +19,18 @@ CREATE TABLE `orders` (
   `updated_at` timestamp(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
   `version` int NOT NULL DEFAULT 0,
   PRIMARY KEY (`id`),
-  UNIQUE KEY `uk_orders_merchant_order_no` (`merchant_id`, `order_no`),
-  UNIQUE KEY `uk_orders_merchant_id` (`merchant_id`, `id`),
-  KEY `idx_orders_merchant_customer_placed` (`merchant_id`, `customer_id`, `placed_at`),
-  CONSTRAINT `fk_orders_merchant` FOREIGN KEY (`merchant_id`) REFERENCES `merchant` (`id`),
-  CONSTRAINT `fk_orders_customer` FOREIGN KEY (`merchant_id`, `customer_id`)
+  UNIQUE KEY `uk_trade_order_merchant_order_no` (`merchant_id`, `order_no`),
+  UNIQUE KEY `uk_trade_order_merchant_id` (`merchant_id`, `id`),
+  KEY `idx_trade_order_merchant_customer_placed` (`merchant_id`, `customer_id`, `placed_at`),
+  CONSTRAINT `fk_trade_order_merchant` FOREIGN KEY (`merchant_id`) REFERENCES `merchant` (`id`),
+  CONSTRAINT `fk_trade_order_customer` FOREIGN KEY (`merchant_id`, `customer_id`)
     REFERENCES `consumer_account` (`merchant_id`, `id`),
-  CONSTRAINT `ck_orders_status` CHECK (`status` IN ('PENDING_PAYMENT', 'PENDING_SHIPMENT', 'SHIPPED', 'COMPLETED', 'CANCELLED')),
-  CONSTRAINT `ck_orders_pay_status` CHECK (`pay_status` IN ('UNPAID', 'PAID', 'REFUNDING', 'REFUNDED')),
-  CONSTRAINT `ck_orders_total_amount` CHECK (`total_amount` >= 0)
+  CONSTRAINT `ck_trade_order_status` CHECK (`status` IN ('PENDING_PAYMENT', 'PENDING_SHIPMENT', 'SHIPPED', 'COMPLETED', 'CANCELLED')),
+  CONSTRAINT `ck_trade_order_pay_status` CHECK (`pay_status` IN ('UNPAID', 'PAID', 'REFUNDING', 'REFUNDED')),
+  CONSTRAINT `ck_trade_order_total_amount` CHECK (`total_amount` >= 0)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
-CREATE TABLE `order_item` (
+CREATE TABLE `trade_order_item` (
   `id` bigint NOT NULL COMMENT 'Snowflake primary key',
   `merchant_id` bigint NOT NULL,
   `order_id` bigint NOT NULL,
@@ -42,11 +44,11 @@ CREATE TABLE `order_item` (
   `created_at` timestamp(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
   `updated_at` timestamp(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
   PRIMARY KEY (`id`),
-  UNIQUE KEY `uk_order_item_merchant_id` (`merchant_id`, `id`),
-  KEY `idx_order_item_merchant_order` (`merchant_id`, `order_id`),
-  CONSTRAINT `fk_order_item_merchant` FOREIGN KEY (`merchant_id`) REFERENCES `merchant` (`id`),
-  CONSTRAINT `fk_order_item_order` FOREIGN KEY (`merchant_id`, `order_id`)
-    REFERENCES `orders` (`merchant_id`, `id`),
-  CONSTRAINT `ck_order_item_quantity` CHECK (`quantity` > 0),
-  CONSTRAINT `ck_order_item_amount` CHECK (`amount` >= 0)
+  UNIQUE KEY `uk_trade_order_item_merchant_id` (`merchant_id`, `id`),
+  KEY `idx_trade_order_item_merchant_order` (`merchant_id`, `order_id`),
+  CONSTRAINT `fk_trade_order_item_merchant` FOREIGN KEY (`merchant_id`) REFERENCES `merchant` (`id`),
+  CONSTRAINT `fk_trade_order_item_order` FOREIGN KEY (`merchant_id`, `order_id`)
+    REFERENCES `trade_order` (`merchant_id`, `id`),
+  CONSTRAINT `ck_trade_order_item_quantity` CHECK (`quantity` > 0),
+  CONSTRAINT `ck_trade_order_item_amount` CHECK (`amount` >= 0)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;

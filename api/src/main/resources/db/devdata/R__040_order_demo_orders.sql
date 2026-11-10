@@ -23,7 +23,7 @@ SELECT
     WHERE (a.id = s.id AND a.merchant_id = m.id)
   ) THEN 1 ELSE NULL END,
   CASE WHEN EXISTS (
-    SELECT 1 FROM orders o
+    SELECT 1 FROM trade_order o
     JOIN (
       SELECT 2100000000000301 AS id, 'M_3C_DEMO' AS code, 'DEV-2026-0001' AS order_no
       UNION ALL SELECT 2100000000000302, 'M_3C_DEMO', 'DEV-2026-0002'
@@ -37,7 +37,7 @@ SELECT
       AND (o.id <> s.id OR o.merchant_id <> m.id OR o.order_no <> s.order_no)
   ) THEN NULL ELSE 1 END;
 
-INSERT INTO orders (id, merchant_id, order_no, customer_id, status, pay_status, total_amount, paid_amount, currency, placed_at)
+INSERT INTO trade_order (id, merchant_id, order_no, customer_id, status, pay_status, total_amount, paid_amount, currency, placed_at)
 SELECT o.id, m.id, o.order_no, o.customer_id, o.status, o.pay_status, o.total_amount, o.paid_amount, 'CNY', o.placed_at
 FROM (
   SELECT 2100000000000301 AS id, 'M_3C_DEMO' AS code, 'DEV-2026-0001' AS order_no,
@@ -58,9 +58,9 @@ FROM (
 ) o
 JOIN merchant m ON m.merchant_code = o.code
 JOIN consumer_account c ON c.id = o.customer_id AND c.merchant_id = m.id
-WHERE NOT EXISTS (SELECT 1 FROM orders x WHERE x.id = o.id AND x.merchant_id = m.id AND x.order_no = o.order_no);
+WHERE NOT EXISTS (SELECT 1 FROM trade_order x WHERE x.id = o.id AND x.merchant_id = m.id AND x.order_no = o.order_no);
 
-INSERT INTO order_item (id, merchant_id, order_id, product_id, sku_id, product_name_snapshot, sku_attrs_snapshot, unit_price, quantity, amount)
+INSERT INTO trade_order_item (id, merchant_id, order_id, product_id, sku_id, product_name_snapshot, sku_attrs_snapshot, unit_price, quantity, amount)
 SELECT i.id, m.id, o.id, i.product_id, i.sku_id, i.product_name_snapshot, i.sku_attrs_snapshot, i.unit_price, i.quantity, i.amount
 FROM (
   SELECT 2100000000000311 AS id, 'M_3C_DEMO' AS code, 'DEV-2026-0001' AS order_no,
@@ -97,8 +97,8 @@ FROM (
          '隔离测试充电线', '{"颜色":"黑色","长度":"0.5米"}',
          35.00, 1, 35.00
 ) i
-JOIN orders o ON o.order_no = i.order_no
+JOIN trade_order o ON o.order_no = i.order_no
 JOIN merchant m ON m.merchant_code = i.code AND o.merchant_id = m.id
-WHERE NOT EXISTS (SELECT 1 FROM order_item x WHERE x.id = i.id AND x.merchant_id = m.id);
+WHERE NOT EXISTS (SELECT 1 FROM trade_order_item x WHERE x.id = i.id AND x.merchant_id = m.id);
 
 DROP TEMPORARY TABLE dev_seed_order_guard;

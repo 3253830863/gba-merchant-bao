@@ -58,6 +58,10 @@ class DevSeedMigrationIT {
         jdbc.update("UPDATE merchant SET merchant_name='operator name',status='DISABLED',timezone='UTC',currency_code='USD',version=4 WHERE id=1000000000000001");
         jdbc.update("UPDATE merchant_staff_account SET password_hash='preserved-digest',status='DISABLED',display_name='operator staff',version=3 WHERE id=2100000000000101");
         jdbc.update("UPDATE consumer_account SET status='DISABLED',display_name='operator consumer' WHERE id=2100000000000201");
+        // R__040 demo orders reference the demo consumers; the FK correctly blocks removing a
+        // referenced account, so clear its orders before exercising the account seed re-run.
+        jdbc.update("DELETE FROM trade_order_item WHERE order_id IN (SELECT id FROM trade_order WHERE customer_id=2100000000000202)");
+        jdbc.update("DELETE FROM trade_order WHERE customer_id=2100000000000202");
         var before = tool.snapshot();
         execute("db/seed/nonprod/R__010_local_test_tenants.sql");
         execute("db/devdata/R__020_auth_demo_accounts.sql");
