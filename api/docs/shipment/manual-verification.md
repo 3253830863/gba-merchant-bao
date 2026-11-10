@@ -32,12 +32,57 @@ SELECT shipment_id, status, description FROM shipment_track ORDER BY shipment_id
 
 ## 4. SOAP WebService（课程演示）
 
-1. WSDL：浏览器/HTTP GET `http://localhost:8080/services/shipment?wsdl` → 可访问，含 `queryShipmentByOrderNo`。
-2. 无凭证调用（如 SoapUI 新建 SOAP 项目导入 WSDL）：请求被拒，Fault detail `invalid service credential`。
-3. 配置凭证：SoapUI 请求头添加 `<q:serviceToken xmlns:q="https://gba.merchantbao/shipment/v1">与 SHIPMENT_WS_TOKEN 一致的值</q:serviceToken>` 放入 SOAP Header。
+### 4.1 三步手工验证（SoapUI / 浏览器）
+
+1. WSDL：浏览器/HTTP GET `http://localhost:8080/services/shipment?wsdl` → 可访问，含 `queryShipmentByOrderNo` 与 `ping`。
+2. 无凭证调用（SoapUI 新建 SOAP 项目导入 WSDL）：请求被拒，Fault detail `invalid service credential`。
+3. 配置凭证：请求头加 `<q:serviceToken xmlns:q="https://gba.merchantbao/shipment/v1">与 SHIPMENT_WS_TOKEN 一致的值</q:serviceToken>`（放 SOAP Header，不是 HTTP Header）。
 4. 调用 `queryShipmentByOrderNo(M_3C_DEMO, SO-DEMO-0301)` → 返回 `IN_TRANSIT` 摘要与轨迹；`queryShipmentByOrderNo(M_3C_DEMO, missing)` → Fault detail `NOT_FOUND`。
 5. `ping` 操作 → 连通性问候串。
 6. 验证 `/services/**` 不影响 REST：匿名 `GET /api/v1/orders/.../shipment` 仍 401。
+
+### 4.2 命令行直调（留证用，不需要装 SoapUI）
+
+构造 envelope 文件 `soap-query.xml`（元素名以 WSDL 为准，命名空间固定 `https://gba.merchantbao/shipment/v1`）：
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/"
+                  xmlns:v1="https://gba.merchantbao/shipment/v1">
+  <soapenv:Header>
+    <v1:serviceToken>${SHIPMENT_WS_TOKEN}</v1:serviceToken>
+  </soapenv:Header>
+  <soapenv:Body>
+    <v1:queryShipmentByOrderNo>
+      <merchantCode>M_3C_DEMO</merchantCode>
+      <orderNo>SO-DEMO-0301</orderNo>
+    </v1:queryShipmentByOrderNo>
+  </soapenv:Body>
+</soapenv:Envelope>
+```
+
+```bash
+# 正常调用：应返回 IN_TRANSIT + 轨迹（SOAPAction 为空串，CXF doc/lit 不依赖它）
+curl -sS -X POST http://localhost:8080/services/shipment   -H 'Content-Type: text/xml; charset=utf-8' -H 'SOAPAction: ""'   --data-binary @soap-query.xml
+
+# 反例 1：删掉 Header 里的 serviceToken → soap:Fault，detail 含 invalid service credential
+# 反例 2：orderNo 换成 missing → soap:Fault，detail 含 NOT_FOUND
+```
+
+入参是**商户编码 + 订单号**（不是 orderId，也不是运单号），走服务间授权；浏览器会话 token 对 SOAP 无效，
+两条通道互不复用凭证——这正是本模块演示的「独立信任域」。
+
+### 4.3 Java 客户端（可选，验证 JAX-WS 反序列化）
+
+```java
+// 用 WSDL 生成客户端（CXF cxf-codegen-plugin 或 wsimport），凭证通过 SOAPHandler 注入 serviceToken
+var url = new java.net.URL("http://localhost:8080/services/shipment?wsdl");
+var port = new com.gba.merchantbao.shipment.webservice.ShipmentWebService_Service(url)
+        .getShipmentWebServicePort();
+System.out.println(port.ping());   // 无凭证时会收到 Fault：invalid service credential
+```
+
+> 客户端侧提示：doc/lit wrapped 下 `@WebParam` 不要带 `targetNamespace`，否则反序列化失败（实现侧已按此约定移除）。
 
 ## 5. 自动化测试
 
@@ -46,7 +91,7 @@ SELECT shipment_id, status, description FROM shipment_track ORDER BY shipment_id
 mvn -f api/pom.xml clean verify   # 单元测试 + 全部 IT（failsafe）
 ```
 
-- `ShipmentQueryServiceTest` / `ShipmentServiceTokenHandlerTest`：纯单元，无需 Docker。
+- `ShipmentQueryServiceTest` / `ShipmentServiceTokenInterceptorTest`：纯单元，无需 Docker。
 - `ShipmentSchemaIT`：V5 DDL 约束（一单一运单、运单号租户内唯一、状态闭合、商户外键、轨迹幂等唯一）。
 - `ShipmentFlowIT`：REST 授权契约全场景。
 - `ShipmentSoapIT`：WSDL 可达、凭证门禁、往返摘要、NOT_FOUND、REST 链路不受影响。
