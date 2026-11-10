@@ -4,7 +4,7 @@
 
 ## 1. 启动与迁移
 
-1. 启动 API：Flyway 应依次执行 V1–V5，并加载 R__010/R__020/R__030。
+1. 启动 API：Flyway 应依次执行 V1–V6，并加载 R__010/R__020/R__030/R__040（V5/R030 属会话模块）。
 2. 确认日志无迁移报错；`shipment`、`shipment_track` 表存在且含演示数据。
 
 ```sql
@@ -92,7 +92,7 @@ mvn -f api/pom.xml clean verify   # 单元测试 + 全部 IT（failsafe）
 ```
 
 - `ShipmentQueryServiceTest` / `ShipmentServiceTokenInterceptorTest`：纯单元，无需 Docker。
-- `ShipmentSchemaIT`：V5 DDL 约束（一单一运单、运单号租户内唯一、状态闭合、商户外键、轨迹幂等唯一）。
+- `ShipmentSchemaIT`：V6 DDL 约束（一单一运单、运单号租户内唯一、状态闭合、商户外键、轨迹幂等唯一）。
 - `ShipmentFlowIT`：REST 授权契约全场景。
 - `ShipmentSoapIT`：WSDL 可达、凭证门禁、往返摘要、NOT_FOUND、REST 链路不受影响。
 
@@ -100,4 +100,4 @@ mvn -f api/pom.xml clean verify   # 单元测试 + 全部 IT（failsafe）
 
 1. 订单模块未交付：无运单记录的订单统一 404，不返回 200/NOT_SHIPPED（`OrderAccessGuard` 端口已预留，真实实现落地后自动合成）。
 2. 消费者个人归属校验（本人订单）待订单模块授权接入；当前仅租户级隔离由 SQL 谓词保证。
-3. Flyway V5 编号与订单/库存模块协调（tasks 1.3）后如调整，需同步 devdata R 编号。
+3. Flyway 编号已定稿为 V6/R040（main 的 V5/R030 已被会话模块占用）；订单模块 V7/R050、库存模块 V8 排在其后。
