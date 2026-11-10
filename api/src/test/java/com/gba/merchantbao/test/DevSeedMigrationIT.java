@@ -40,8 +40,8 @@ class DevSeedMigrationIT {
     }
 
     @Test void freshOrderAndUnchangedMigrateHaveExactlyOneExecutionPerSeed() {
-        // V1-V7 (7) + R__010/R__020/R__030/R__040/R__050 (5) = 12.
-        assertThat(tool.flyway().migrate().migrationsExecuted).isEqualTo(12);
+        // V1-V8 (8) + R__010/R__020/R__030/R__040/R__050 (5) = 13.
+        assertThat(tool.flyway().migrate().migrationsExecuted).isEqualTo(13);
         assertThat(jdbc.queryForList("SELECT script FROM flyway_schema_history ORDER BY installed_rank", String.class))
                 .endsWith("R__010_local_test_tenants.sql", "R__020_auth_demo_accounts.sql", "R__030_chat_demo.sql",
                         "R__040_shipment_demo_data.sql", "R__050_order_demo_orders.sql");
@@ -92,9 +92,9 @@ class DevSeedMigrationIT {
         assertThat(tool.snapshot()).isEqualTo(stolenKey);
     }
 
-    @Test void historicalV4WithOnlyOldNamesUpgradesTheExplicitV5V6V7AndFiveSeeds() throws Exception {
+    @Test void historicalV4WithOnlyOldNamesUpgradesTheExplicitV5V6V7V8AndFiveSeeds() throws Exception {
         oldHistory(true);
-        assertThat(tool.inspect().pendingVersions()).containsExactly("5", "6", "7");
+        assertThat(tool.inspect().pendingVersions()).containsExactly("5", "6", "7", "8");
         var existing = tool.snapshot();
         tool.execute(tool.inspect());
         tool.assertPreserved(existing);
@@ -228,7 +228,7 @@ class DevSeedMigrationIT {
         oldHistory(false);
         var before = tool.history();
         Path migrations = files.resolve("tampered"); Files.createDirectories(migrations);
-        for (String name : List.of("V1__legacy_schema_baseline.sql", "V2__merchant_tenant_root.sql", "V3__merchant_currency_compatibility.sql", "V4__auth_accounts.sql", "V5__agent_conversation.sql", "V6__shipment_tables.sql", "V7__order_tables.sql")) {
+        for (String name : List.of("V1__legacy_schema_baseline.sql", "V2__merchant_tenant_root.sql", "V3__merchant_currency_compatibility.sql", "V4__auth_accounts.sql", "V5__agent_conversation.sql", "V6__shipment_tables.sql", "V7__order_tables.sql", "V8__inventory_tables.sql")) {
             Files.copy(Path.of("src/main/resources/db/migration", name), migrations.resolve(name));
         }
         // A real failed migration is refused; no history edits are used to manufacture the condition.
@@ -247,9 +247,9 @@ class DevSeedMigrationIT {
             var start = new CountDownLatch(1);
             Callable<Integer> migrate = () -> { start.await(); return tool.flyway().migrate().migrationsExecuted; };
             var a = executor.submit(migrate); var b = executor.submit(migrate); start.countDown();
-            assertThat(a.get(90, TimeUnit.SECONDS) + b.get(90, TimeUnit.SECONDS)).isEqualTo(12);
+            assertThat(a.get(90, TimeUnit.SECONDS) + b.get(90, TimeUnit.SECONDS)).isEqualTo(13);
         }
-        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM flyway_schema_history WHERE success=1", Integer.class)).isEqualTo(12);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM flyway_schema_history WHERE success=1", Integer.class)).isEqualTo(13);
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM merchant_staff_account", Integer.class)).isEqualTo(2);
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM consumer_account", Integer.class)).isEqualTo(3);
         tool.flyway().validate();
@@ -287,7 +287,7 @@ class DevSeedMigrationIT {
         jdbc.update("UPDATE merchant SET merchant_name='operator preserved',status='DISABLED' WHERE id=1000000000000002");
         var existing = tool.snapshot();
         var historicalRows = jdbc.queryForList("SELECT * FROM flyway_schema_history ORDER BY installed_rank");
-        assertThat(tool.inspect().pendingVersions()).isEqualTo(startAtV3 ? List.of("4","5","6","7") : List.of("5","6","7"));
+        assertThat(tool.inspect().pendingVersions()).isEqualTo(startAtV3 ? List.of("4","5","6","7","8") : List.of("5","6","7","8"));
         Path report = files.resolve("report");
         assertThat(cli("check", report, url, database, false, null)).isZero();
         String before = tool.history();
@@ -311,7 +311,7 @@ class DevSeedMigrationIT {
         assertThat(jdbc.queryForList("SELECT * FROM flyway_schema_history ORDER BY installed_rank")).containsAll(historicalRows);
         if (startAtV3) assertThat(jdbc.queryForList("SELECT script FROM flyway_schema_history WHERE type='SQL' ORDER BY installed_rank", String.class))
                 .endsWith("V4__auth_accounts.sql", "V5__agent_conversation.sql", "V6__shipment_tables.sql", "V7__order_tables.sql",
-                        "R__010_local_test_tenants.sql", "R__020_auth_demo_accounts.sql", "R__030_chat_demo.sql",
+                        "V8__inventory_tables.sql", "R__010_local_test_tenants.sql", "R__020_auth_demo_accounts.sql", "R__030_chat_demo.sql",
                         "R__040_shipment_demo_data.sql", "R__050_order_demo_orders.sql");
         assertThat(Files.readString(report.resolve("result.json"))).contains("\"preserved\" : true");
         assertThat(cli("check", files.resolve("reentry"), url, database, false, null)).isZero();
