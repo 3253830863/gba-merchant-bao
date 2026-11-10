@@ -24,6 +24,16 @@ api/src/main/java/com/gba/merchantbao/
   auth/util/           输入规范化与安全随机/摘要工具
   auth/logging/        脱敏认证审计
   auth/config/         运行校验、双安全链与 Springdoc 分组
+  agent/config/        模型开关、配置校验与 LangChain4j 装配
+  agent/service/       AgentModel 边界、OpenAI 兼容适配、有限重试与上下文预算
+  chat/controller/     六个对话操作与串行 SSE 写入
+  chat/service/        本人授权、事务、共享运行权、幂等与终态竞争
+  chat/mapper/         会话/消息 MyBatis Mapper（SQL 同时限定租户与本人）
+  chat/entity/         会话、消息数据库 Row 与可信归属
+  chat/dto/            创建、发送和空请求 DTO
+  chat/vo/             独立会话/消息/运行响应
+  chat/config/         有界流式资源、Springdoc 分组
+  chat/exception/      对话错误码与 HTTP 适配
   legacy/              保留的旧餐饮项目实现
 ```
 
@@ -53,6 +63,8 @@ api/src/main/java/com/gba/merchantbao/
 
 `/api/v1/**` 使用 stateless Spring Security 链，RequestIdFilter 在安全链之前；AuthSecurityFilter 仅在链内创建，避免重复 servlet 注册。refresh/logout 走各自凭证验证分支，旧链继续交给 legacy 拦截器。SecurityContext 与 legacy BaseContext 都在 finally 清理。
 
-后续领域入口接收安全链构造的不可变 Actor；不得从 body/header 自报 merchantId/role。通用私有 SQL 必带 Actor.merchantId，消费者再带 Actor.accountId；公开店铺只按 URL 定位 ACTIVE 商户。先角色、再带范围查资源；越界和不存在同为 404。通用路由若收到 A token 就处理 A，无法知道浏览器停在 B 页面；未来显式保护店铺路径才核对 URL/token 租户并返回 403。本期不新增订单或 Agent 持久化模型。
+后续领域入口接收安全链构造的不可变 Actor；不得从 body/header 自报 merchantId/role。通用私有 SQL 必带 Actor.merchantId，消费者再带 Actor.accountId；公开店铺只按 URL 定位 ACTIVE 商户。先角色、再带范围查资源；越界和不存在同为 404。通用路由若收到 A token 就处理 A，无法知道浏览器停在 B 页面；未来显式保护店铺路径才核对 URL/token 租户并返回 403。Agent 的 V5 新增 chat_session/chat_message，消费者和员工均限定本商户本人角色与账号；员工不能读取消费者会话。
+
+对话调用为 ChatController → ChatService → ChatSessionMapper/ChatMessageMapper。ChatService 在提交消息占位和运行权后，经 AgentModel 调用模型；OpenAiAgentModel 使用 LangChain4j 转换协议，AgentContext 从 MySQL 成功完整轮次组装上下文。后续 RAG/FC 可复用此边界及可信 Actor，不能把模型返回的身份当授权。MySQL 保存完整历史；当前没有 Redis ChatMemory 键、摘要、Tool 或 RAG 编排。验收与剩余 Apifox 工作见 [Agent 验收记录](../agent/verification.md)。
 
 auth 不导入 legacy 账号/Mapper/BaseContext，依赖检查由 AuthContextTest 覆盖。common 只承载 ID/envelope 等通用边界，不把 legacy 会话当可信 Actor。

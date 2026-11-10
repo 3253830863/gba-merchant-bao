@@ -1,6 +1,6 @@
 # 物流模块数据设计（评审稿）
 
-> 状态：2026-11-07 评审稿已实现并落盘：`V5__shipment_tables.sql`（编号与订单/库存模块协调后如调整，迁移文件名随 tasks 1.3 同步）与 `R__030_shipment_demo_data.sql`（devdata 编号登记见 db/devdata/README.md）。UTC 时间、Snowflake 主键、字符串化输出与 auth 模块一致。
+> 状态：2026-11-07 评审稿已实现并落盘：`V6__shipment_tables.sql` 与 `R__040_shipment_demo_data.sql`（devdata 编号登记见 db/devdata/README.md）。编号已在 tasks 1.3 定稿：main 的 V5/R030 已被会话模块占用，物流顺延为 V6/R040。UTC 时间、Snowflake 主键、字符串化输出与 auth 模块一致。
 
 ## 1. 表：shipment（一单一运单）
 
@@ -8,7 +8,7 @@
 | --- | --- | --- | --- |
 | id | BIGINT UNSIGNED | PK | Snowflake |
 | merchant_id | BIGINT UNSIGNED | NOT NULL | 租户根；所有查询必带 |
-| order_id | BIGINT UNSIGNED | NOT NULL | 逻辑关联订单模块 orders.id；**不建物理外键** |
+| order_id | BIGINT UNSIGNED | NOT NULL | 逻辑关联订单模块 trade_order.id；**不建物理外键** |
 | order_no | VARCHAR(64) | NOT NULL | 下单时订单号快照；SOAP 查询键之一 |
 | status | VARCHAR(20) | NOT NULL | NOT_SHIPPED / IN_TRANSIT / DELIVERED |
 | carrier_name | VARCHAR(64) | NOT NULL | 承运商展示名 |
@@ -52,17 +52,18 @@
 2. **冗余 merchant_id** 到 shipment_track：轨迹隔离查询不 join 主表，SQL 一律带租户限定。
 3. **冗余 order_no** 快照到 shipment：SOAP 按订单号查询免 join 订单表；订单号以下单时为准，商品/订单变更不回写。
 
-## 4. Flyway 编号协调（待评审确认）
+## 4. Flyway 编号（已定稿）
 
-- 本模块迁移暂定 `V5__shipment_tables.sql`，**物理顺序必须晚于订单模块的 orders/order_item 迁移**。
-- 订单、库存模块可能同样申请 V5/V6；评审时按「订单 → 库存 → 物流」或实际开工顺序定序，最终编号在 tasks 1.3 关闭。
+- 本模块迁移为 `V6__shipment_tables.sql`，devdata 为 `R__040_shipment_demo_data.sql`。
+- 定序结果：**物流 V6/R040 → 订单 V7/R050 → 库存 V8**。main 上 `V5__agent_conversation.sql` 与 `R__030_chat_demo.sql` 先占用，物流不能再取 V5。
+- 因不建物理外键，物流表先于订单表创建不构成依赖问题；`order_id` 仅逻辑关联订单模块的 `trade_order.id`（V1 legacy 基线已占用 `orders`，订单表落地名为 `trade_order`）。
 - 已发布迁移不修改（团队铁律）；本模块迁移仅 DDL。
 
 ## 5. 数据分层
 
 | 层 | 内容 | 边界 |
 | --- | --- | --- |
-| devdata | `R__030_shipment_demo_data.sql`（编号暂定）：两租户各含未发货、多段轨迹运输中、已签收三类演示 | 仅 dev 加载；只补缺失、幂等；test/prod 不加载 |
+| devdata | `R__040_shipment_demo_data.sql`：两租户各含未发货、多段轨迹运输中、已签收三类演示 | 仅 dev 加载；只补缺失、幂等；test/prod 不加载 |
 | test fixture | `src/test/resources/db/fixture/shipment.sql`：跨租户对照、越权场景、无物流记录订单 | 测试 `@Sql` 显式加载；事务回滚或稳定标识清理 |
 | 生产 | 无种子；运单数据按实际业务写入 | 本期不建物流录入后台 |
 

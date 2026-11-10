@@ -40,10 +40,11 @@ class DevSeedMigrationIT {
     }
 
     @Test void freshOrderAndUnchangedMigrateHaveExactlyOneExecutionPerSeed() {
-        // V1-V6 (6) + R__010/R__020/R__030/R__040 (4) = 10.
-        assertThat(tool.flyway().migrate().migrationsExecuted).isEqualTo(10);
+        // V1-V7 (7) + R__010/R__020/R__030/R__040/R__050 (5) = 12.
+        assertThat(tool.flyway().migrate().migrationsExecuted).isEqualTo(12);
         assertThat(jdbc.queryForList("SELECT script FROM flyway_schema_history ORDER BY installed_rank", String.class))
-                .endsWith("R__010_local_test_tenants.sql", "R__020_auth_demo_accounts.sql", "R__030_shipment_demo_data.sql", "R__040_order_demo_orders.sql");
+                .endsWith("R__010_local_test_tenants.sql", "R__020_auth_demo_accounts.sql", "R__030_chat_demo.sql",
+                        "R__040_shipment_demo_data.sql", "R__050_order_demo_orders.sql");
         var history = jdbc.queryForList("SELECT * FROM flyway_schema_history ORDER BY installed_rank");
         var tenants = jdbc.queryForList("SELECT * FROM merchant ORDER BY id");
         assertThat(tool.flyway().migrate().migrationsExecuted).isZero();
@@ -51,6 +52,54 @@ class DevSeedMigrationIT {
         assertThat(jdbc.queryForList("SELECT * FROM merchant ORDER BY id")).isEqualTo(tenants);
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM merchant_staff_account", Integer.class)).isEqualTo(2);
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM consumer_account", Integer.class)).isEqualTo(3);
+    }
+
+    @Test void chatExplicitReexecutionPreservesManualChangesAndRepairsOnlyMissingStableRows() throws Exception {
+        tool.flyway().migrate();
+        var original = jdbc.queryForMap("SELECT * FROM chat_message WHERE id=2300000000000002");
+        assertThat(original.get("content")).isEqualTo("这是开发演示回复，不代表真实模型调用。");
+        jdbc.update("UPDATE chat_session SET title='人工标题',status='ARCHIVED',archived_at='2026-11-08',archived_by=owner_account_id WHERE id=2200000000000001");
+        jdbc.update("UPDATE chat_message SET content='人工正文',input_tokens=123 WHERE id=2300000000000002");
+        var before = tool.snapshot();
+        execute("db/devdata/R__030_chat_demo.sql"); execute("db/devdata/R__030_chat_demo.sql");
+        tool.assertPreserved(before);
+        assertThat(jdbc.queryForObject("SELECT title FROM chat_session WHERE id=2200000000000001",String.class)).isEqualTo("人工标题");
+        assertThat(jdbc.queryForObject("SELECT content FROM chat_message WHERE id=2300000000000002",String.class)).isEqualTo("人工正文");
+        jdbc.update("DELETE FROM chat_message WHERE id=2300000000000004");
+        assertThat(tool.flyway().migrate().migrationsExecuted).isZero();
+        assertThat(jdbc.queryForList("SELECT id FROM chat_message WHERE id=2300000000000004")).isEmpty();
+        execute("db/devdata/R__030_chat_demo.sql");
+        assertThat(jdbc.queryForObject("SELECT session_id FROM chat_message WHERE id=2300000000000004",Long.class)).isEqualTo(2200000000000002L);
+    }
+
+    @Test void chatDependenciesAndIdentityConflictsFailBeforeBusinessWrites() throws Exception {
+        structure(); execute("db/seed/nonprod/R__010_local_test_tenants.sql");
+        execute("db/devdata/R__020_auth_demo_accounts.sql");
+        jdbc.update("DELETE FROM consumer_account WHERE id=2100000000000202");
+        var missing = tool.snapshot();
+        assertThatThrownBy(() -> execute("db/devdata/R__030_chat_demo.sql")).hasStackTraceContaining("dev_seed_chat_missing_owner");
+        assertThat(tool.snapshot()).isEqualTo(missing);
+        execute("db/devdata/R__020_auth_demo_accounts.sql");
+        jdbc.update("INSERT INTO chat_session(id,merchant_id,owner_account_id,owner_role,created_at,updated_at) VALUES(2200000000000001,1000000000000002,2100000000000201,'CONSUMER','2026-11-08','2026-11-08')");
+        var conflict = tool.snapshot();
+        assertThatThrownBy(() -> execute("db/devdata/R__030_chat_demo.sql")).hasStackTraceContaining("dev_seed_chat_session_identity_conflict");
+        assertThat(tool.snapshot()).isEqualTo(conflict);
+        jdbc.update("DELETE FROM chat_session WHERE id=2200000000000001");
+        execute("db/devdata/R__030_chat_demo.sql");
+        jdbc.update("UPDATE chat_message SET id=999 WHERE id=2300000000000001");
+        var stolenKey = tool.snapshot();
+        assertThatThrownBy(() -> execute("db/devdata/R__030_chat_demo.sql")).hasStackTraceContaining("dev_seed_chat_message_identity_conflict");
+        assertThat(tool.snapshot()).isEqualTo(stolenKey);
+    }
+
+    @Test void historicalV4WithOnlyOldNamesUpgradesTheExplicitV5V6V7AndFiveSeeds() throws Exception {
+        oldHistory(true);
+        assertThat(tool.inspect().pendingVersions()).containsExactly("5", "6", "7");
+        var existing = tool.snapshot();
+        tool.execute(tool.inspect());
+        tool.assertPreserved(existing);
+        assertThat(jdbc.queryForObject("SELECT owner_account_id FROM chat_session WHERE id=2200000000000001",Long.class)).isEqualTo(2100000000000201L);
+        assertThat(tool.inspect().complete()).isTrue();
     }
 
     @Test void tenantAndAccountExplicitReexecutionPreservesAllManualChanges() throws Exception {
@@ -179,12 +228,12 @@ class DevSeedMigrationIT {
         oldHistory(false);
         var before = tool.history();
         Path migrations = files.resolve("tampered"); Files.createDirectories(migrations);
-        for (String name : List.of("V1__legacy_schema_baseline.sql", "V2__merchant_tenant_root.sql", "V3__merchant_currency_compatibility.sql", "V4__auth_accounts.sql", "V5__shipment_tables.sql", "V6__order_tables.sql")) {
+        for (String name : List.of("V1__legacy_schema_baseline.sql", "V2__merchant_tenant_root.sql", "V3__merchant_currency_compatibility.sql", "V4__auth_accounts.sql", "V5__agent_conversation.sql", "V6__shipment_tables.sql", "V7__order_tables.sql")) {
             Files.copy(Path.of("src/main/resources/db/migration", name), migrations.resolve(name));
         }
         // A real failed migration is refused; no history edits are used to manufacture the condition.
-        // V7 keeps clear of the real V6__order_tables applied during oldHistory's full migrate.
-        Files.writeString(migrations.resolve("V7__unexpected.sql"), "INSERT INTO table_that_does_not_exist VALUES (1);");
+        // V99 stays clear of every real migration number applied during oldHistory's full migrate.
+        Files.writeString(migrations.resolve("V99__unexpected.sql"), "INSERT INTO table_that_does_not_exist VALUES (1);");
         var unexpected = Flyway.configure().dataSource(url, "root", MYSQL.getPassword())
                 .locations("filesystem:" + migrations, "filesystem:" + files.resolve("old")).load();
         assertThatThrownBy(unexpected::migrate).isInstanceOf(org.flywaydb.core.api.FlywayException.class);
@@ -198,9 +247,9 @@ class DevSeedMigrationIT {
             var start = new CountDownLatch(1);
             Callable<Integer> migrate = () -> { start.await(); return tool.flyway().migrate().migrationsExecuted; };
             var a = executor.submit(migrate); var b = executor.submit(migrate); start.countDown();
-            assertThat(a.get(90, TimeUnit.SECONDS) + b.get(90, TimeUnit.SECONDS)).isEqualTo(10);
+            assertThat(a.get(90, TimeUnit.SECONDS) + b.get(90, TimeUnit.SECONDS)).isEqualTo(12);
         }
-        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM flyway_schema_history WHERE success=1", Integer.class)).isEqualTo(10);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM flyway_schema_history WHERE success=1", Integer.class)).isEqualTo(12);
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM merchant_staff_account", Integer.class)).isEqualTo(2);
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM consumer_account", Integer.class)).isEqualTo(3);
         tool.flyway().validate();
@@ -238,7 +287,7 @@ class DevSeedMigrationIT {
         jdbc.update("UPDATE merchant SET merchant_name='operator preserved',status='DISABLED' WHERE id=1000000000000002");
         var existing = tool.snapshot();
         var historicalRows = jdbc.queryForList("SELECT * FROM flyway_schema_history ORDER BY installed_rank");
-        assertThat(tool.inspect().pendingVersions()).isEqualTo(startAtV3 ? List.of("4", "5", "6") : List.of());
+        assertThat(tool.inspect().pendingVersions()).isEqualTo(startAtV3 ? List.of("4","5","6","7") : List.of("5","6","7"));
         Path report = files.resolve("report");
         assertThat(cli("check", report, url, database, false, null)).isZero();
         String before = tool.history();
@@ -261,13 +310,15 @@ class DevSeedMigrationIT {
         tool.assertPreserved(existing);
         assertThat(jdbc.queryForList("SELECT * FROM flyway_schema_history ORDER BY installed_rank")).containsAll(historicalRows);
         if (startAtV3) assertThat(jdbc.queryForList("SELECT script FROM flyway_schema_history WHERE type='SQL' ORDER BY installed_rank", String.class))
-                .endsWith("V4__auth_accounts.sql", "V5__shipment_tables.sql", "V6__order_tables.sql", "R__010_local_test_tenants.sql", "R__020_auth_demo_accounts.sql", "R__030_shipment_demo_data.sql", "R__040_order_demo_orders.sql");
+                .endsWith("V4__auth_accounts.sql", "V5__agent_conversation.sql", "V6__shipment_tables.sql", "V7__order_tables.sql",
+                        "R__010_local_test_tenants.sql", "R__020_auth_demo_accounts.sql", "R__030_chat_demo.sql",
+                        "R__040_shipment_demo_data.sql", "R__050_order_demo_orders.sql");
         assertThat(Files.readString(report.resolve("result.json"))).contains("\"preserved\" : true");
         assertThat(cli("check", files.resolve("reentry"), url, database, false, null)).isZero();
         assertThat(Files.readString(files.resolve("reentry/review.json"))).contains("\"complete\" : true");
     }
 
-    @Test void pendingVersionOtherThanExactlyV4IsRejectedWithoutRepair() throws Exception {
+    @Test void pendingVersionOutsideApprovedV4V5V6V7SuffixIsRejectedWithoutRepair() throws Exception {
         Flyway.configure().dataSource(url, "root", MYSQL.getPassword())
                 .locations("classpath:db/migration").target("2").load().migrate();
         String before = tool.history();
@@ -316,11 +367,11 @@ class DevSeedMigrationIT {
         Path old = files.resolve("old"); Files.createDirectories(old);
         Files.copy(Path.of("src/test/resources/db/upgrade-history/tenants-before-numbering.sql"), old.resolve("R__local_test_tenants.sql"));
         Flyway.configure().dataSource(url, "root", MYSQL.getPassword())
-                .locations("classpath:db/migration", "filesystem:" + old).load().migrate();
+                .locations("classpath:db/migration", "filesystem:" + old).target("4").load().migrate();
         if (accounts) {
             Files.copy(Path.of("src/test/resources/db/upgrade-history/accounts-before-numbering.sql"), old.resolve("R__auth_demo_accounts.sql"));
             Flyway.configure().dataSource(url, "root", MYSQL.getPassword())
-                    .locations("classpath:db/migration", "filesystem:" + old).load().migrate();
+                    .locations("classpath:db/migration", "filesystem:" + old).target("4").load().migrate();
         }
     }
 

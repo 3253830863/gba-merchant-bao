@@ -11,7 +11,7 @@
 - 新增 `com.gba.merchantbao.order` 业务域，沿用 auth 的 controller/service/mapper 三层结构：`OrderController` 只做协议适配，`OrderQueryService` 承载三层授权（先角色、再租户、再资源归属），Mapper/XML 所有语句必带 `merchant_id` 与主体范围；越界与不存在统一 404/10004。
 - HTTP 提供两个只读入口：`GET /api/v1/orders`（分页，pageNum 默认 1、pageSize 默认 10 上限 100）与 `GET /api/v1/orders/{orderId}`（含订单项快照）；沿用统一 envelope、字符串化 ID、UTC 时间与 no-store。
 - 订单模型不保存手机号、地址等隐私字段；`OrderQueryService` 即 Agent 订单 Tool 的接入面（Java Service 注入，不走 HTTP 回调），返回同一脱敏投影。
-- devdata 新增 `R__030_order_demo_orders.sql`（编号 030）：3C 样板租户覆盖全部状态的 6 单与隔离租户复用同号的 1 单；测试数据走 `@Sql` fixture，稳定 ID 20000000000003xx。
+- devdata 新增 `R__050_order_demo_orders.sql`（编号 050）：3C 样板租户覆盖全部状态的 6 单与隔离租户复用同号的 1 单；测试数据走 `@Sql` fixture，稳定 ID 20000000000003xx。
 - 集成测试覆盖：Mapper/Service 租户与本人范围、真实 SQL EXPLAIN 走索引、组合外键拒绝跨租户引用、CHECK 约束拒绝非法状态、HTTP 契约（分页上限、404 不泄露存在性、匿名 401、ID 字符串化）。
 
 ## Capabilities
@@ -26,7 +26,7 @@
 
 ## Impact
 
-- 后端 `api/`：新增 `order` 业务域（controller/service/mapper/entity/dto/exception/handler/config）、`V5__order_tables.sql` 增量迁移、Mapper XML 与 MyBatis 扫描扩展。
+- 后端 `api/`：新增 `order` 业务域（controller/service/mapper/entity/dto/exception/handler/config）、`V7__order_tables.sql` 增量迁移、Mapper XML 与 MyBatis 扫描扩展。
 - API：新增 `/api/v1/orders` 与 `/api/v1/orders/{orderId}` 两个受保护 GET；springdoc 新分组 `order-v1` 供前端导出 OpenAPI。
 - 数据：devdata 增加 030 号种子；测试 fixture 增加 `orders.sql`；新 V 不依赖 R 数据。
 - Agent：`OrderQueryService` 就绪后即可接入订单 Tool，不阻塞物流模块并行开发；最终字段/索引在本模块 change 冻结。

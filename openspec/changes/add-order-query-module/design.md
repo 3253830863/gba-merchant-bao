@@ -26,5 +26,5 @@
 
 ## 迁移与冻结
 
-- `V5__order_tables.sql` 为冻结契约：后续字段变更走 V6+ 增量，不改写 V5。
+- `V7__order_tables.sql` 为冻结契约：后续字段变更走更高版本增量，不改写 V7。
 - devdata 030 号依赖 010/020 号种子（租户、消费者），locations 顺序由 README 登记约定表达，不使用 AFTER_MIGRATE 回调。

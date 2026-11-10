@@ -11,7 +11,7 @@ import java.sql.*;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-/** Pure DDL contract check for V5__shipment_tables; no Spring context, manual transactions. */
+/** Pure DDL contract check for V6__shipment_tables; no Spring context, manual transactions. */
 @Testcontainers
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class ShipmentSchemaIT {

@@ -3,6 +3,17 @@ spring:
     locations: classpath:db/migration,classpath:db/seed/common,classpath:db/seed/nonprod,classpath:db/devdata
 
 merchant:
+  agent:
+    # dots Chat Completions；填入本机 API key 后启用/启动。
+    enabled: false
+    base-url: https://note3-prev-api.askdiandian.com/v1
+    api-key: ""
+    api-key-header: api-key
+    model: dots3-note-prev
+    service-label: dots
+    # dots 默认开启深度思考，为首个正文 token 留出时间。
+    first-token-timeout: 90s
+    total-timeout: 180s
   auth:
     sms:
       provider: mock

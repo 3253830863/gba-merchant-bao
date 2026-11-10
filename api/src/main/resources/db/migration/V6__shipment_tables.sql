@@ -1,7 +1,7 @@
 -- Shipment module tables (roadmap section 5). Logical reference to the order module only:
 -- order tables are delivered by a later migration, so no physical foreign key to orders is created.
--- Numbering V5 is provisional; physical order must stay AFTER the order module's migration
--- (coordination recorded in openspec/changes/add-shipment-web-service tasks 1.3).
+-- Numbering: V6. V5 is already taken by the agent/conversation module on main, so the shipment
+-- module takes V6 and the order (V7) / inventory (V8) modules follow after it.
 
 CREATE TABLE `shipment` (
   `id` bigint NOT NULL COMMENT 'Snowflake primary key',

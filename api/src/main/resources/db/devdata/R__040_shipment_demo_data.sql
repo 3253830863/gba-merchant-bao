@@ -1,5 +1,6 @@
--- Development only. Shipment demo data for the shipment module (registry entry R__030).
--- order_id/order_no align with the order module devdata (R__040_order_demo_orders.sql):
+-- Development only. Shipment demo data for the shipment module (registry entry R__040;
+-- R__030 is taken by the agent/conversation demo seed on main).
+-- order_id/order_no align with the order module devdata (R__050_order_demo_orders.sql):
 -- DEV-2026-0001 (COMPLETED) carries the DELIVERED shipment, DEV-2026-0002 (SHIPPED) the
 -- IN_TRANSIT one, and the isolation tenant its own DEV-2026-0001.
 -- NOT_SHIPPED is synthesized by the service when no shipment row exists, so no NOT_SHIPPED rows are seeded.
