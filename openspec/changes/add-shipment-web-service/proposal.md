@@ -1,6 +1,6 @@
 # Proposal
 
-> 状态：契约与提案评审稿（2026-11-07）。本 change 只冻结需求、API/SOAP 契约与表设计，不包含实现代码；实现任务见 `tasks.md`，全部未勾选。
+> 状态：已实现（2026-11-10）。本 change 冻结需求、API/SOAP 契约与表设计，并已落地为代码、迁移与测试；验收证据见 `tasks.md` 与 `api/docs/shipment/verification.md`。未合并 main、未发布生产。
 
 ## Why
 
@@ -27,8 +27,8 @@
 
 ## Impact
 
-- 后端 `api/`（实现阶段）：新增 `shipment/` 业务域（controller/service/mapper/entity/dto 三层结构），新增 CXF 依赖与 `/services/*` 端点注册，新增 `V6__shipment_tables.sql`（编号已定稿：V5/R030 已被会话模块占用，故物流取 V6/R040，订单 V7/R050、库存 V8）、devdata 与 test fixture。
+- 后端 `api/`（已落地）：新增 `shipment/` 业务域（controller/service/mapper/entity/dto 三层结构），新增 CXF 依赖与 `/services/*` 端点注册，新增 `V6__shipment_tables.sql`（编号已定稿：V5/R030 已被会话模块占用，故物流取 V6/R040，订单 V7/R050、库存 V8）、devdata 与 test fixture。
 - API：新增一个 REST 操作与一个 SOAP 端点；不改动已有 `/api/v1/**` 行为、不新增匿名入口。
 - 授权：物流查询复用可信 Actor；订单归属验证依赖订单模块的真实查询，集成前以 fixture 订单数据联调，最终验收必须接真实订单授权。
-- 文档：`api/docs/shipment/`（requirements / api-design / data-design），导出 `docs/api/shipment-v1.openapi.yaml`（评审稿先行，实现后以 Springdoc 导出替换核对）。
+- 文档：`api/docs/shipment/`（requirements / api-design / data-design / manual-verification / verification），`docs/api/shipment-v1.openapi.yaml` 已由实际 Springdoc `shipment-v1` 分组导出并替换评审稿。
 - 验收：未发货、多段轨迹、已签收、越权 404、trackingNo 不可绕过授权、WSDL 可访问且 SOAP 客户端往返成功。
