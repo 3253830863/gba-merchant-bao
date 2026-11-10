@@ -20,6 +20,11 @@ import org.testcontainers.containers.MySQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
+
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
@@ -151,5 +156,42 @@ class ShipmentFlowIT {
         assertThat(view.path("trackingNo").asText()).isEqualTo("FIX1000003");
         assertThat(view.path("tracks").size()).isEqualTo(1);
         assertThat(view.path("tracks").get(0).path("description").asText()).contains("隔离");
+    }
+
+    /**
+     * Exports the real Springdoc group {@code shipment-v1} so the repository snapshot in
+     * {@code docs/api/shipment-v1.openapi.yaml} is generated output instead of the hand-written
+     * review draft. The assertions pin the single operation, the shared envelope and the error
+     * codes reviewers rely on; the YAML itself lands in {@code target/} and is copied to docs.
+     */
+    @Test
+    void exportsActualSpringdocContractForShipmentV1() throws Exception {
+        String token = sessions.login(staff(DEMO_TENANT, 2000000000000101L)).accessToken();
+        assertThat(get("/api/v1/orders/" + IN_TRANSIT_ORDER + "/shipment", token).getStatusCode())
+                .as("controller served before the contract snapshot is taken").isEqualTo(HttpStatus.OK);
+
+        var response = http.getForEntity("/v3/api-docs/shipment-v1", String.class);
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        JsonNode doc = json.readTree(response.getBody());
+
+        List<String> operations = new ArrayList<>();
+        doc.path("paths").fields().forEachRemaining(path -> path.getValue().fields()
+                .forEachRemaining(operation -> operations.add(operation.getValue().path("operationId").asText())));
+        assertThat(operations).containsExactly("getOrderShipment");
+        assertThat(doc.path("info").path("title").asText()).isEqualTo("Merchant Shipment API");
+        assertThat(doc.path("paths").path("/api/v1/orders/{orderId}/shipment").has("get")).isTrue();
+
+        var responses = doc.path("paths").path("/api/v1/orders/{orderId}/shipment").path("get").path("responses");
+        assertThat(responses.has("200")).isTrue();
+        assertThat(responses.has("404")).isTrue();
+        assertThat(doc.path("components").path("schemas").has("ApiResponseShipmentView")).isTrue();
+        assertThat(doc.path("components").path("securitySchemes").path("bearerAuth").path("scheme").asText())
+                .isEqualTo("bearer");
+        assertThat(response.getBody()).contains("orderId", "trackingNo", "estimatedDeliveryAt", "10004", "no-store");
+
+        String yaml = http.getForObject("/v3/api-docs.yaml/shipment-v1", String.class);
+        assertThat(yaml).startsWith("openapi:");
+        Files.createDirectories(Path.of("target"));
+        Files.writeString(Path.of("target/shipment-v1.openapi.yaml"), yaml);
     }
 }

@@ -2,7 +2,7 @@
 
 ## Purpose
 
-定义按已授权订单查询物流状态、承运商、运单与轨迹的只读行为，含 REST 入口与 SOAP WebService 端点（课程分布式框架落点）。本 spec 为评审稿；实现与验收证据在实现阶段交付后补充，任务状态以本 change 的 `tasks.md` 为准。
+定义按已授权订单查询物流状态、承运商、运单与轨迹的只读行为，含 REST 入口与 SOAP WebService 端点（课程分布式框架落点）。实现已交付（2026-11-10），验收证据见 `api/docs/shipment/verification.md`，任务状态以本 change 的 `tasks.md` 为准。
 
 ## ADDED Requirements
 
