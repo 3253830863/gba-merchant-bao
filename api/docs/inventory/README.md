@@ -1,6 +1,6 @@
 # 库存模块（inventory）
 
-区巧柔交付的库存模块按主仓规范合入：纯 MyBatis + XML（无 MyBatis-Plus），身份只来自
+库存模块（队友交付）按主仓规范合入：纯 MyBatis + XML（无 MyBatis-Plus），身份只来自
 `@AuthenticationPrincipal Actor`（`auth.security.Actor`，record），统一主仓 `ApiResponse`
 envelope，业务错误码走 13xxx 段。
 
