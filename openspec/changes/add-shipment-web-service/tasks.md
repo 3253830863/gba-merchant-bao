@@ -6,7 +6,7 @@
 
 - [ ] 1.1 评审并按反馈修订 `api/docs/shipment/requirements.md`：冻结未发货/运输中/已签收三态、不编造预计送达、越权统一 404、trackingNo 不可绕过授权等行为。
 - [ ] 1.2 评审并按反馈修订 `api/docs/shipment/api-design.md`（REST + SOAP 双契约）与 `docs/api/shipment-v1.openapi.yaml` 评审稿；确认错误码只用公共段、预留 12xxx。
-- [ ] 1.3 与订单负责人（郑舒允）对齐 `orders/order_item` 表名、主键类型、`order_no` 快照字段与 `GET /api/v1/orders/{orderId}` 的授权语义；与库存负责人（区巧柔）协调 Flyway 编号顺序。
+- [ ] 1.3 与订单负责人对齐 `orders/order_item` 表名、主键类型、`order_no` 快照字段与 `GET /api/v1/orders/{orderId}` 的授权语义；与库存负责人协调 Flyway 编号顺序。
 - [ ] 1.4 与老师/队友确认 WebService 信任模型（SOAP 独立信任域、服务间凭证、不绕过 REST 授权）与「WebService ≠ WebSocket」的口径。
 
 ## 2. Flyway 表结构、索引与数据边界
