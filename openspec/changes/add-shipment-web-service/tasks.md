@@ -1,6 +1,6 @@
 # Tasks
 
-> 状态：实现完成（2026-11-10），并已合并 main 最新基线（会话模块 V5/R030 占用后本模块顺延为 V6/R040）；`mvn -f api/pom.xml clean verify` BUILD SUCCESS（单元 54/54 + 集成 94/94，Testcontainers MySQL/Redis）。剩余 5.2（Springdoc 导出替换评审稿）与 5.4（openspec validate 与一致性核对）在合并后收尾。执行顺序按「契约评审 → 表 → Service/REST → WebService → 测试 → 文档验收」。
+> 状态：全部完成（2026-11-10），并已合并 main 最新基线（会话模块 V5/R030 占用后本模块顺延为 V6/R040）；`mvn -f api/pom.xml clean verify` BUILD SUCCESS（单元 78/78 + 集成 106/106，Testcontainers MySQL/Redis），证据见 `api/docs/shipment/verification.md`。执行顺序按「契约评审 → 表 → Service/REST → WebService → 测试 → 文档验收」。
 
 ## 1. 需求与契约评审
 
@@ -31,6 +31,6 @@
 ## 5. 文档与验收
 
 - [x] 5.1 交付 `api/docs/shipment/data-design.md`（表/字段/索引/编号协调记录）与 `manual-verification.md`（dev 联调步骤：两类主体查询、越权、SOAP 客户端演示）。
-- [ ] 5.2 实现完成后以 Springdoc 导出替换 `docs/api/shipment-v1.openapi.yaml` 评审稿，逐操作核对；更新 README 导航与 Apifox 记录。
-- [x] 5.3 运行 `mvn -f api/pom.xml test` 与 `clean verify`：HTTP/MySQL/Flyway/SOAP 集成测试真实执行，Docker 不可用明确失败，报告仅写 target。**结果：BUILD SUCCESS，单元 54/54 + 集成 94/94。**
-- [ ] 5.4 `openspec validate add-shipment-web-service --strict`；核对 proposal/design/tasks/specs 与 api/docs 一致；汇总已知限制（订单真实授权接入前为联调态）。
+- [x] 5.2 实现完成后以 Springdoc 导出替换 `docs/api/shipment-v1.openapi.yaml` 评审稿，逐操作核对；更新 README 导航与 Apifox 记录。**结果：`ShipmentFlowIT.exportsActualSpringdocContractForShipmentV1` 从隔离后端实际导出 `shipment-v1` 分组并落盘（1 操作 `getOrderShipment`、bearerAuth、错误 envelope、`no-store`），快照为原始输出未手工改写；`api/README.md` 补齐物流文档与快照导航；差异与限制见 `api/docs/shipment/verification.md`。**
+- [x] 5.3 运行 `mvn -f api/pom.xml test` 与 `clean verify`：HTTP/MySQL/Flyway/SOAP 集成测试真实执行，Docker 不可用明确失败，报告仅写 target。**结果：BUILD SUCCESS，单元 78/78 + 集成 106/106（2026-11-10 13:04）。**
+- [x] 5.4 `openspec validate add-shipment-web-service --strict`；核对 proposal/design/tasks/specs 与 api/docs 一致；汇总已知限制（订单真实授权接入前为联调态）。**结果：`npx @fission-ai/openspec@1.17.0 validate add-shipment-web-service --strict` 通过；proposal/design/specs 的「未实现」状态已改为已实现并联到 `verification.md`；编号结论统一 V6/R040 + 订单 V7/R050 + 库存 V8；已知限制见 `verification.md`。**

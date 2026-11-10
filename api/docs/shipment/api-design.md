@@ -1,6 +1,6 @@
-# 物流模块 API 设计（评审稿）
+# 物流模块 API 设计
 
-> 状态：2026-11-07 契约评审稿，未实现。REST 契约机读版见 `docs/api/shipment-v1.openapi.yaml`（实现后以 Springdoc 导出替换）；本文同时登记 SOAP WebService 契约。统一响应 `{code, message, data, requestId}`，成功 `code=0`；IDs 字符串化、时间 UTC；私有响应 `Cache-Control: no-store`。
+> 状态：已实现（联调态，2026-11-10）。REST 契约机读版 `docs/api/shipment-v1.openapi.yaml` 已由实际 Springdoc `shipment-v1` 分组导出（替换早前的评审稿，见 [verification.md](verification.md)）；本文同时登记 SOAP WebService 契约。统一响应 `{code, message, data, requestId}`，成功 `code=0`；IDs 字符串化、时间 UTC；私有响应 `Cache-Control: no-store`。
 
 ## 1. REST 契约
 

@@ -18,6 +18,7 @@ public class ShipmentOpenApiConfiguration {
         return GroupedOpenApi.builder().group("shipment-v1")
             .packagesToScan("com.gba.merchantbao.shipment.controller")
             .pathsToMatch("/api/v1/orders/*/shipment").addOpenApiCustomizer(api -> {
+                api.getInfo().setTitle("Merchant Shipment API");
                 api.getInfo().setDescription("物流契约评审稿实现快照：1 只读操作。SOAP WebService（/services/shipment?wsdl）为独立信任域，"
                         + "不进入本文档。错误复用公共段，12xxx 预留。IDs 字符串化、时间 UTC、所有响应 no-store。");
                 api.setServers(java.util.List.of(new io.swagger.v3.oas.models.servers.Server().url("/")));

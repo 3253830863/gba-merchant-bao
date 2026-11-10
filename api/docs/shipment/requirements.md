@@ -1,6 +1,6 @@
-# 物流模块需求与验收（评审稿）
+# 物流模块需求与验收
 
-> 状态：2026-11-07 契约评审稿，未实现。依据 `api/docs/architecture/module-roadmap.md` 第 5 节与 `openspec/changes/add-shipment-web-service/`。
+> 状态：已实现（联调态，2026-11-10），未合并 main、未发布生产。依据 `api/docs/architecture/module-roadmap.md` 第 5 节与 `openspec/changes/add-shipment-web-service/`；验收证据见 [verification.md](verification.md)，联调步骤见 [manual-verification.md](manual-verification.md)。
 
 ## 1. 模块定位
 
