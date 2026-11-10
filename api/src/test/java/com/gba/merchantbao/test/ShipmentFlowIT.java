@@ -23,13 +23,14 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * HTTP contract for GET /api/v1/orders/{orderId}/shipment.
- * 联调态 known limitation: without the order module the guard cannot resolve ownership,
- * so orders without a shipment row are unified 404 instead of 200/NOT_SHIPPED.
+ * HTTP contract for GET /api/v1/orders/{orderId}/shipment with the real order-module
+ * authorization: ownership comes from the orders tables via OrderBackedOrderAccessGuard —
+ * an existing owned order without shipment rows is 200/NOT_SHIPPED, while missing/foreign
+ * orders stay an indistinguishable 404/10004.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @ActiveProfiles("test") @Testcontainers @DirtiesContext
-@Sql(scripts = {"/db/fixture/auth_accounts.sql", "/db/fixture/shipment.sql"},
+@Sql(scripts = {"/db/fixture/auth_accounts.sql", "/db/fixture/orders.sql", "/db/fixture/shipment.sql"},
         executionPhase = Sql.ExecutionPhase.BEFORE_TEST_CLASS)
 class ShipmentFlowIT {
     static {DockerRequired.check();}
@@ -141,6 +142,30 @@ class ShipmentFlowIT {
         var invalid = get("/api/v1/orders/not-a-number/shipment", token);
         assertThat(invalid.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
         assertThat(json.readTree(invalid.getBody()).path("code").asInt()).isEqualTo(10001);
+    }
+
+    @Test
+    void ownedOrderWithoutShipmentRowSynthesizesNotShippedAndForeignStays404() throws Exception {
+        // orders.sql: 2000000000000301 belongs to consumer 2000000000000201 in M_3C_DEMO and has no shipment row.
+        String staff = sessions.login(staff(DEMO_TENANT, 2000000000000101L)).accessToken();
+        var response = get("/api/v1/orders/2000000000000301/shipment", staff);
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        var view = data(response);
+        assertThat(view.path("status").asText()).isEqualTo("NOT_SHIPPED");
+        assertThat(view.path("orderId").asText()).isEqualTo("2000000000000301");
+        assertThat(view.path("orderId").isTextual()).isTrue();
+        assertThat(view.path("tracks").size()).isZero();
+
+        // A consumer who does not own the order and a foreign-tenant staff both get the unified 404.
+        String otherConsumer = sessions.login(consumer(DEMO_TENANT, 2000000000000202L)).accessToken();
+        var foreignConsumer = get("/api/v1/orders/2000000000000301/shipment", otherConsumer);
+        assertThat(foreignConsumer.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+        assertThat(json.readTree(foreignConsumer.getBody()).path("code").asInt()).isEqualTo(10004);
+
+        String isolationStaff = sessions.login(staff(ISOLATION_TENANT, 2000000000000102L)).accessToken();
+        var foreignStaff = get("/api/v1/orders/2000000000000301/shipment", isolationStaff);
+        assertThat(foreignStaff.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+        assertThat(json.readTree(foreignStaff.getBody()).path("code").asInt()).isEqualTo(10004);
     }
 
     @Test

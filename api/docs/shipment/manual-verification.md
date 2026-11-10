@@ -21,8 +21,8 @@ SELECT shipment_id, status, description FROM shipment_track ORDER BY shipment_id
 
 | 步骤 | 请求 | 预期 |
 | --- | --- | --- |
-| 员工查运输中 | `GET /api/v1/orders/3000000000000301/shipment` + 员工 token | 200，`IN_TRANSIT`、顺丰、`SF1000000000301`、3 段轨迹升序、`estimatedDeliveryAt` 存在 |
-| 员工查已签收 | `GET /api/v1/orders/3000000000000302/shipment` | 200，`DELIVERED` + `deliveredAt`，无 `estimatedDeliveryAt` 字段 |
+| 员工查运输中 | `GET /api/v1/orders/2100000000000302/shipment` + 员工 token | 200，`IN_TRANSIT`、顺丰、`SF1000000000301`、3 段轨迹升序、`estimatedDeliveryAt` 存在 |
+| 员工查已签收 | `GET /api/v1/orders/2100000000000301/shipment` | 200，`DELIVERED` + `deliveredAt`，无 `estimatedDeliveryAt` 字段 |
 | 消费者查同租户 | 同上用消费者 token | 200（联调态；订单模块就绪后收口为仅本人订单） |
 | 跨租户员工 | M_ISOLATION_TEST 员工查 0301 | 404/10004 |
 | 不存在订单 | `GET /api/v1/orders/999/shipment` | 404/10004（与越权不可区分） |
@@ -35,7 +35,7 @@ SELECT shipment_id, status, description FROM shipment_track ORDER BY shipment_id
 1. WSDL：浏览器/HTTP GET `http://localhost:8080/services/shipment?wsdl` → 可访问，含 `queryShipmentByOrderNo`。
 2. 无凭证调用（如 SoapUI 新建 SOAP 项目导入 WSDL）：请求被拒，Fault detail `invalid service credential`。
 3. 配置凭证：SoapUI 请求头添加 `<q:serviceToken xmlns:q="https://gba.merchantbao/shipment/v1">与 SHIPMENT_WS_TOKEN 一致的值</q:serviceToken>` 放入 SOAP Header。
-4. 调用 `queryShipmentByOrderNo(M_3C_DEMO, SO-DEMO-0301)` → 返回 `IN_TRANSIT` 摘要与轨迹；`queryShipmentByOrderNo(M_3C_DEMO, missing)` → Fault detail `NOT_FOUND`。
+4. 调用 `queryShipmentByOrderNo(M_3C_DEMO, DEV-2026-0002)` → 返回 `IN_TRANSIT` 摘要与轨迹；`queryShipmentByOrderNo(M_3C_DEMO, missing)` → Fault detail `NOT_FOUND`。
 5. `ping` 操作 → 连通性问候串。
 6. 验证 `/services/**` 不影响 REST：匿名 `GET /api/v1/orders/.../shipment` 仍 401。
 
