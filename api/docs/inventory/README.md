@@ -26,7 +26,7 @@ envelope，业务错误码走 13xxx 段。
 
 ## Flyway 编号
 
-V7__inventory_tables.sql（三方协调：物流 V5 / 订单 V6 / 库存 V7）。暂无 devdata 演示数据——
+V8__inventory_tables.sql（编号已顺延：main 合入会话模块后占用 V5/R030，物流 V6 / 订单 V7 / 库存 V8）。暂无 devdata 演示数据——
 商品 SKU 种子未交付，待商品模块就绪后按 devdata 编号登记补种。
 
 ## 已知留待事项

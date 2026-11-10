@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.gba.merchantbao.chat.mapper.ChatSessionMapper">
+  <sql id="columns">id,merchant_id,owner_account_id,owner_role,title,status,created_at,updated_at,
+    archived_at,archived_by,next_message_seq,active_run_id,run_deadline_at</sql>
+  <sql id="owner">merchant_id=#{owner.merchantId} AND owner_account_id=#{owner.accountId} AND owner_role=#{owner.role}</sql>
+  <update id="expireRun">
+    UPDATE chat_session SET run_deadline_at=#{now}
+    WHERE <include refid="owner"/> AND id=#{sessionId} AND active_run_id=#{runId} AND run_deadline_at > #{now}
+  </update>
+  <insert id="insert">
+    INSERT INTO chat_session (<include refid="columns"/>) VALUES
+      (#{id},#{merchantId},#{ownerAccountId},#{ownerRole},#{title},#{status},#{createdAt},#{updatedAt},
+       #{archivedAt},#{archivedBy},#{nextMessageSeq},#{activeRunId},#{runDeadlineAt})
+  </insert>
+  <select id="findOwned" resultType="com.gba.merchantbao.chat.entity.ChatSessionRow" flushCache="true" useCache="false">
+    SELECT <include refid="columns"/> FROM chat_session WHERE <include refid="owner"/> AND id=#{sessionId}
+  </select>
+  <select id="lockOwned" resultType="com.gba.merchantbao.chat.entity.ChatSessionRow" flushCache="true" useCache="false">
+    SELECT <include refid="columns"/> FROM chat_session WHERE <include refid="owner"/> AND id=#{sessionId} FOR UPDATE
+  </select>
+  <select id="pageOwned" resultType="com.gba.merchantbao.chat.entity.ChatSessionRow" flushCache="true" useCache="false">
+    <bind name="pageSize" value="size > 100 ? 100 : (size &lt; 1 ? 1 : size)"/>
+    SELECT <include refid="columns"/> FROM chat_session WHERE <include refid="owner"/>
+    <if test="beforeTime != null and beforeId != null">
+      AND (updated_at &lt; #{beforeTime} OR (updated_at=#{beforeTime} AND id &lt; #{beforeId}))
+    </if>
+    ORDER BY updated_at DESC,id DESC LIMIT #{pageSize}
+  </select>
+  <update id="archiveOwned">
+    UPDATE chat_session SET status='ARCHIVED',archived_at=#{now},archived_by=#{owner.accountId},updated_at=#{now}
+    WHERE <include refid="owner"/> AND id=#{sessionId} AND status='ACTIVE' AND active_run_id IS NULL
+  </update>
+  <update id="acquireRun">
+    UPDATE chat_session SET active_run_id=#{runId},run_deadline_at=#{deadline},
+      next_message_seq=next_message_seq+2,updated_at=#{now}
+    WHERE <include refid="owner"/> AND id=#{sessionId} AND status='ACTIVE' AND active_run_id IS NULL
+      AND next_message_seq=#{expectedNextSeq} AND next_message_seq &lt;= 9223372036854775805
+      AND #{deadline} > #{now}
+  </update>
+  <update id="releaseRun">
+    UPDATE chat_session SET active_run_id=NULL,run_deadline_at=NULL,updated_at=#{now}
+    WHERE <include refid="owner"/> AND id=#{sessionId} AND active_run_id=#{runId}
+      AND EXISTS (SELECT 1 FROM chat_message m WHERE m.merchant_id=#{owner.merchantId}
+        AND m.session_id=#{sessionId} AND m.run_id=#{runId} AND m.sender_type='ASSISTANT'
+        AND m.status IN ('COMPLETED','CANCELLED','TIMED_OUT','FAILED'))
+  </update>
+</mapper>

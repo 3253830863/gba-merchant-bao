@@ -9,7 +9,7 @@
 | `api/docs/architecture/module-roadmap.md` 第 5 节 | 物流交付：shipment、shipment_track；`GET /api/v1/orders/{orderId}/shipment`；建议 `ShipmentQueryService`；依赖订单模块真实归属查询 |
 | `api/docs/architecture/module-roadmap.md` 第 145 行 | 「课程 WebService/Nginx/Redis 并发验收另行规划」——本 change 正式承接 WebService 落点（2026-11-07 团队确认落物流） |
 | `db/migration/V1__legacy_schema_baseline.sql` | legacy `orders/order_detail` 是旧餐饮业务，与本模块无关；物流关联的是订单模块将新建的 `orders/order_item` |
-| `db/migration/` 现状 | 已发布 V1–V4 不修改；V5 编号可能被订单/库存占用，须协调 |
+| `db/migration/` 现状 | 已发布 V1–V5 不修改（V5 属会话模块）；本模块定编 V6/R040，订单 V7/R050、库存 V8 |
 | `auth/` 包结构 | controller/service/mapper/entity/dto 三层 + 辅助包；shipment 沿用 |
 | `docs/api/auth-v1.openapi.yaml` | 契约风格：IDs 字符串化、UTC 时间、统一 envelope、错误码分段 |
 | `view/` 前端 | Mock 模式已具备；物流契约评审通过后即可补页面 |
@@ -106,12 +106,12 @@ ShipmentSummaryDTO queryShipmentByOrderNo(String merchantCode, String orderNo)
 索引：`KEY(shipment_id, event_time)`、`UNIQUE(shipment_id, event_time, description)`（种子幂等）。
 
 - 不建物理外键的原因：订单表由订单模块的迁移创建，物理顺序与 Flyway 编号必须协调；授权由 Service/SQL 强制，与 auth 的做法一致。
-- devdata：`R__030_shipment_demo_data.sql`（编号暂定）提供未发货/多段轨迹/已签收三类演示，两租户各一份用于隔离演示；实现阶段落盘，编号与订单/库存模块协调。
+- devdata：`R__040_shipment_demo_data.sql` 提供未发货/多段轨迹/已签收三类演示，两租户各一份用于隔离演示；R__030 已被会话模块占用。
 - test fixture：`src/test/resources/db/fixture/shipment.sql`，测试 `@Sql` 显式加载。
 
 ## Risks / Trade-offs
 
 1. **订单模块未就绪**：归属校验先用 fixture 订单联调；最终验收必须接真实订单授权，否则模块不算完成（roadmap 明文）。
-2. **Flyway 编号竞争**：订单/库存模块也可能用 V5/V6；本 change 的 V5 暂定，评审时与两位负责人定序，物流迁移物理顺序必须晚于订单表。
+2. **Flyway 编号竞争（已关闭）**：main 合入会话模块后 V5/R030 被占用，本 change 定编 **V6/R040**，订单模块 V7/R050、库存模块 V8 排在其后。因不建物理外键，物流表先于订单表创建不构成依赖。
 3. **SOAP 端点被误解为绕过授权**：信任模型已在决策二写死；评审时重点让队友与老师确认这一边界。
 4. **CXF 与 Springdoc 共存**：`/services/*` 不进入 OpenAPI 文档，WSDL 独立提供；Springdoc 扫描排除 WebService 端点，避免契约混淆。

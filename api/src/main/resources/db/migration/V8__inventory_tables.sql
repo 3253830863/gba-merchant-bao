@@ -1,6 +1,7 @@
 -- Inventory module tables: SKU stock with optimistic-lock version, stock transaction ledger
 -- and the idempotency table backing INSERT-based acquire.
--- Numbering: V7 per the three-way Flyway agreement (shipment V5, order V6, inventory V7).
+-- Numbering: V8. The numbering shifted one place after main took V5/R030 for the
+-- agent/conversation module: shipment V6, order V7, inventory V8.
 -- Primary keys stay AUTO_INCREMENT for this module; ids never leave the API as numbers.
 
 CREATE TABLE IF NOT EXISTS inventory (

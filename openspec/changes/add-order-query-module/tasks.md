@@ -7,8 +7,8 @@
 
 ## 2. 表结构、索引与 Flyway
 
-- [x] 2.1 新增 `V5__order_tables.sql`：orders/order_item 两表，租户内订单号唯一、`(merchant_id,id)` 组合键、本人订单列表索引、订单项装载索引、组合外键与 CHECK 约束；新 V 不依赖 R 数据。
-- [x] 2.2 devdata `R__030_order_demo_orders.sql`（编号 030 登记）：3C 租户 6 单覆盖全部履约/支付状态、隔离租户复用同号 1 单；幂等补缺失，稳定 ID 21000000000003xx；测试 fixture `db/fixture/orders.sql` 稳定 ID 20000000000003xx 由 `@Sql` 加载。
+- [x] 2.1 新增 `V7__order_tables.sql`：orders/order_item 两表，租户内订单号唯一、`(merchant_id,id)` 组合键、本人订单列表索引、订单项装载索引、组合外键与 CHECK 约束；新 V 不依赖 R 数据。
+- [x] 2.2 devdata `R__050_order_demo_orders.sql`（编号 050 登记）：3C 租户 6 单覆盖全部履约/支付状态、隔离租户复用同号 1 单；幂等补缺失，稳定 ID 21000000000003xx；测试 fixture `db/fixture/orders.sql` 稳定 ID 20000000000003xx 由 `@Sql` 加载。
 
 ## 3. 后端代码
 
