@@ -20,7 +20,7 @@
 
 - [x] 4.1 `OrderPersistenceIT`：租户/本人范围、同号跨租户不泄露、Service 授权与 404、分页 offset 边界、真实 SQL EXPLAIN 走索引、组合外键拒绝跨租户、CHECK 拒绝非法状态。
 - [x] 4.2 `OrderFlowIT`：HTTP 契约——envelope/requestId、ID 字符串化、分页默认/上限/非法值 400、消费者列表与详情快照、员工商户范围、跨租户/他人/不存在 404/10004、匿名 401。
-- [ ] 4.3 在具备 Docker 的开发机执行 `mvn -f api/pom.xml clean verify`，确认全量既有测试与新增 IT 通过（本机无 Docker，待团队环境回归）。
+- [x] 4.3 在具备 Docker 的开发机执行 `mvn -f api/pom.xml clean verify`，确认全量既有测试与新增 IT 通过。**结果：BUILD SUCCESS，单元 78/78 + 集成 115/115（2026-11-10，合并物流分支后重跑；首次全量时 ChatHttpIT 断连用例的 5 秒等待偶发超时，单类重跑与二次全量均通过，与本模块改动无关）。**
 
 ## 5. 文档与联调
 

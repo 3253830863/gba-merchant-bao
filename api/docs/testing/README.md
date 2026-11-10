@@ -80,6 +80,8 @@ mvn -f api/pom.xml '-Dtest=ChatAcceptanceIT' test
 
 ChatSchemaIT/ChatPersistenceIT 验证结构和 Mapper；ChatServiceIT 验证两个独立执行上下文共用数据库的运行权、超时恢复和终态竞争；ChatHttpIT 验证分段 SSE、CORS 与 Springdoc（此类的认证采用替身，不代替 ChatAcceptanceIT）。模型协议和预算由 AgentModelProtocolTest/AgentContextTest 等测试验证。默认 clean verify 会包含 ChatAcceptanceIT，缺失 Docker 明确失败。
 
+ChatHttpIT 的 `clientDisconnectCancelsUpstreamAndLeavesAQueryableTerminal` 用 5 秒等待上游取消，全量并行启动多个容器时偶发超时（2026-11-10 首次全量失败，单类重跑与二次全量均通过）。定位失败时先单独重跑该类：`mvn -f api/pom.xml verify -Dit.test=ChatHttpIT -Dtest=none -DfailIfNoTests=false`，再判断是否为本模块回归。
+
 Apifox 与真实网关联调属于独立验收，不能用这些自动化测试代替。证据、实际报告数量及未完成项见 [Agent 验收记录](../agent/verification.md)；手工步骤见 [Apifox](../agent/apifox-verification.md) 和 [curl/fetch](../agent/manual-verification.md)。
 
 `AgentApifoxWorkspace#serveApifoxOnDisposableInfrastructure` 是供 Apifox 人工验收的显式入口，默认测试发现规则不选择它。它继承真实认证/独立容器设置，仅替换外部短信和模型，应用与 fixture helper 只绑定本机；提供临时登录 token 和按业务标识查询的只读证据。必须人工停止或到时失败，不把“服务启动”记为“Apifox 通过”。启动/停止和可导入用例见上述 Apifox 文档。
